@@ -1,0 +1,10 @@
+[package]
+name = "cache"
+description = "Semantic cache — fingerprint-based response deduplication"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

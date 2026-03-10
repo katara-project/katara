@@ -1,0 +1,16 @@
+[package]
+name = "core"
+description = "KATARA gateway bootstrap and API entry point"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+compiler = { path = "../compiler" }
+memory = { path = "../memory" }
+router = { path = "../router" }
+metrics = { path = "../metrics" }

@@ -1,0 +1,22 @@
+---
+# KATARA provider configuration
+# Each provider defines a connection to an LLM endpoint.
+
+providers:
+  ollama-local:
+    type: openai-compatible
+    base_url: http://localhost:11434/v1
+    deployment: on-prem
+    description: Local Ollama instance for sovereign routing
+
+  openai-compatible:
+    type: openai-compatible
+    base_url: https://example-provider/v1
+    deployment: cloud
+    description: Generic OpenAI-compatible cloud provider
+
+  mistral-cloud:
+    type: mistral
+    base_url: https://api.mistral.ai/v1
+    deployment: cloud
+    description: Mistral AI cloud endpoint

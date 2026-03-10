@@ -1,0 +1,31 @@
+# Rust
+target/
+Cargo.lock
+
+# Node.js
+node_modules/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+
+# Archives
+*.zip
+*.tar.gz

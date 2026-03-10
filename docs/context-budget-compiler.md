@@ -1,0 +1,32 @@
+# Context Budget Compiler
+
+The compiler transforms raw context into the **smallest useful context**
+before the LLM call, reducing cost and improving response quality.
+
+## How it works
+
+1. **Tokenize** the raw input to estimate size.
+2. **Classify intent** (debug, summarize, review, general) to choose reduction strategy.
+3. **Apply reducers** sequentially to shrink the context while preserving signal.
+4. **Emit** a `CompileResult` with before/after token counts.
+
+## Reduction targets
+
+| Source | Strategy |
+| --- | --- |
+| Logs | Keep last N lines, deduplicate repeated frames |
+| Stack traces | Collapse to top-of-stack + root cause |
+| Diffs | Remove unchanged hunks, keep +/- lines |
+| Transcripts | Summarize turns, keep latest 2–3 exchanges |
+| Conversation history | Rolling window with stable-block reuse |
+
+## API
+
+```rust
+pub fn compile_context(raw: &str) -> CompileResult;
+pub fn detect_intent(raw: &str) -> String;
+```
+
+## Crate
+
+`compiler/` — see [compiler/src/lib.rs](../compiler/src/lib.rs).

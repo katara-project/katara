@@ -1,0 +1,213 @@
+/* ── KATARA Design Tokens ────────────────────────────── */
+
+:root {
+  --bg: #0b0f14;
+  --surface: #121821;
+  --surface-2: #18212d;
+  --text: #e9eef5;
+  --muted: #93a1b2;
+  --primary: #39d3ff;
+  --secondary: #8c6dff;
+  --accent: #2cffb3;
+}
+
+/* ── Reset ───────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top right, rgba(140, 109, 255, 0.12), transparent 20%),
+    var(--bg);
+  color: var(--text);
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+}
+
+a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+/* ── Shell Layout ────────────────────────────────────── */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
+/* ── Sidebar ─────────────────────────────────────────── */
+
+.sidebar {
+  background: rgba(12, 16, 22, 0.88);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 24px;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.sidebar nav a {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sidebar nav a.router-link-active {
+  background: linear-gradient(90deg, rgba(57, 211, 255, 0.16), rgba(140, 109, 255, 0.16));
+}
+
+.brand-wrap {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+}
+
+/* ── Content ─────────────────────────────────────────── */
+
+.content {
+  padding: 28px;
+}
+
+/* ── Card ────────────────────────────────────────────── */
+
+.card {
+  background: linear-gradient(180deg, rgba(24, 33, 45, 0.98), rgba(18, 24, 33, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+/* ── Metrics Grid ────────────────────────────────────── */
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.metric-card .label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+}
+
+.metric-card .value {
+  font-size: 1.9rem;
+}
+
+.metric-card .hint,
+.muted {
+  color: var(--muted);
+}
+
+/* ── Two-Column Layout ───────────────────────────────── */
+
+.two-col {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+}
+
+/* ── Gauge ───────────────────────────────────────────── */
+
+.gauge-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 0;
+}
+
+.gauge-ring {
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+}
+
+.gauge-ring span {
+  width: 136px;
+  height: 136px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  font-size: 2.4rem;
+  font-weight: 700;
+}
+
+/* ── Flow Visualizer ─────────────────────────────────── */
+
+.flow-grid {
+  display: grid;
+  grid-template-columns: repeat(9, auto);
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.flow-node {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.flow-node.accent {
+  background: rgba(57, 211, 255, 0.12);
+}
+
+.flow-node.accent-alt {
+  background: rgba(140, 109, 255, 0.14);
+}
+
+.flow-node.good {
+  background: rgba(44, 255, 179, 0.12);
+}
+
+.flow-arrow {
+  color: var(--muted);
+}
+
+/* ── Utilities ───────────────────────────────────────── */
+
+.bullet-clean {
+  padding-left: 18px;
+  color: var(--text);
+}
+
+/* ── Responsive ──────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .metrics-grid,
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+}

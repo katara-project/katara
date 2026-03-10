@@ -1,0 +1,8 @@
+---
+# KATARA policy configuration
+# Controls data handling, optimization targets, and token limits.
+
+policies:
+  sensitive_data: local_only
+  optimize_for: cost
+  max_tokens_per_request: 4000

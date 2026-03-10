@@ -1,0 +1,43 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: katara-core
+  labels:
+    app: katara-core
+    version: "7.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: katara-core
+  template:
+    metadata:
+      labels:
+        app: katara-core
+    spec:
+      containers:
+        - name: katara-core
+          image: katara/core:7.0.0
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

@@ -1,0 +1,12 @@
+---
+# KATARA routing configuration
+# Defines how requests are dispatched to providers.
+
+routing:
+  strategy: hybrid
+  default_provider: ollama-local
+  fallback_provider: openai-compatible
+
+  task_routing:
+    debug: mistral-cloud
+    general: openai-compatible
