@@ -1,0 +1,51 @@
+---
+# KATARA provider configuration
+#
+# Each provider defines a connection to an LLM endpoint.
+# For Ollama, declare one entry per model you want to use.
+# KATARA routes to the right model based on intent + policy.
+#
+# Supported types: openai-compatible, mistral, google (future)
+# The base_url must point to the OpenAI-compatible root (ending in /v1).
+
+providers:
+  # ── Local Ollama models ──────────────────────────────
+  ollama-llama3:
+    type: openai-compatible
+    base_url: http://localhost:11434/v1
+    model: llama3.1
+    deployment: on-prem
+    description: Llama 3.1 8B — general tasks, summarization
+
+  ollama-codellama:
+    type: openai-compatible
+    base_url: http://localhost:11434/v1
+    model: codellama
+    deployment: on-prem
+    description: CodeLlama — code generation, review
+
+  ollama-mistral:
+    type: openai-compatible
+    base_url: http://localhost:11434/v1
+    model: mistral
+    deployment: on-prem
+    description: Mistral 7B local — debug, analysis
+
+  # ── Cloud providers (optional) ──────────────────────
+  # Uncomment and set API key env vars to enable.
+
+  # openai-cloud:
+  #   type: openai-compatible
+  #   base_url: https://api.openai.com/v1
+  #   model: gpt-4o-mini
+  #   deployment: cloud
+  #   api_key_env: OPENAI_API_KEY
+  #   description: OpenAI GPT-4o-mini cloud
+
+  # mistral-cloud:
+  #   type: mistral
+  #   base_url: https://api.mistral.ai/v1
+  #   model: mistral-large-latest
+  #   deployment: cloud
+  #   api_key_env: MISTRAL_API_KEY
+  #   description: Mistral Large cloud endpoint

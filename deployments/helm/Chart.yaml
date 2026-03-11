@@ -1,0 +1,13 @@
+---
+apiVersion: v2
+name: katara
+version: 7.0.0
+appVersion: "7.0.0"
+description: KATARA — Sovereign AI Context Operating System
+type: application
+keywords:
+  - ai-gateway
+  - context-compiler
+  - sovereign-ai
+maintainers:
+  - name: KATARA contributors

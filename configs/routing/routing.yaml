@@ -1,0 +1,18 @@
+---
+# KATARA routing configuration
+#
+# Maps detected intents to providers declared in providers.yaml.
+# sensitive_override forces all sensitive requests to a local provider.
+# Provider names must match keys in providers.yaml exactly.
+
+routing:
+  strategy: hybrid
+  default_provider: ollama-llama3
+  fallback_provider: ollama-llama3
+  sensitive_override: ollama-llama3
+
+  task_routing:
+    debug: ollama-mistral
+    summarize: ollama-llama3
+    review: ollama-codellama
+    general: ollama-llama3
