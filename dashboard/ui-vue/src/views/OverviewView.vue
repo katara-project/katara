@@ -26,7 +26,7 @@
     </div>
     <section class="card chart-section">
       <h3>Token Trends (24h)</h3>
-      <AreaChart :series="trendSeries" :labels="trendLabels" :height="180" />
+      <TvChart :series="trendSeries" :labels="trendLabels" :height="220" />
     </section>
   </div>
 </template>
@@ -37,7 +37,7 @@ import MetricCard from '../components/MetricCard.vue'
 import EfficiencyGauge from '../components/EfficiencyGauge.vue'
 import FlowVisualizer from '../components/FlowVisualizer.vue'
 import SparklineChart from '../components/SparklineChart.vue'
-import AreaChart from '../components/AreaChart.vue'
+import TvChart from '../components/TvChart.vue'
 
 const metrics = useMetricsStore()
 

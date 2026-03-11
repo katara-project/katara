@@ -108,4 +108,8 @@ const insights = [
 @media (max-width: 1100px) {
   .insights-grid { grid-template-columns: 1fr; }
 }
+@media (max-width: 480px) {
+  .insight-card h3 { font-size: 0.92rem; }
+  .insight-card p { font-size: 0.8rem; }
+}
 </style>

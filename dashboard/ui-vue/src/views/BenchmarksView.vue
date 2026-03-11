@@ -77,13 +77,13 @@
 
     <section class="card chart-section">
       <h3>Reduction Over Time</h3>
-      <AreaChart :series="chartSeries" :labels="chartLabels" :height="180" />
+      <TvChart :series="chartSeries" :labels="chartLabels" :height="220" />
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import AreaChart from '../components/AreaChart.vue'
+import TvChart from '../components/TvChart.vue'
 
 const benchmarks = [
   { category: 'Code review', raw: 2100, compiled: 760, reduction: 63.8 },
@@ -147,5 +147,11 @@ const chartSeries = [
 @media (max-width: 1100px) {
   .bench-summary-grid { grid-template-columns: 1fr; }
   .bench-row { grid-template-columns: 1.5fr repeat(4, 1fr); font-size: 0.82rem; }
+}
+@media (max-width: 600px) {
+  .bench-row { grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.78rem; padding: 10px 12px; }
+  .bench-header { display: none; }
+  .bench-category { grid-column: 1 / -1; }
+  .summary-items { grid-template-columns: 1fr; }
 }
 </style>

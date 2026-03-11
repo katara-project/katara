@@ -113,4 +113,11 @@ const steps = [
 @media (max-width: 1100px) {
   .memory-stats, .block-grid { grid-template-columns: 1fr; }
 }
+@media (max-width: 768px) {
+  .memory-stats { grid-template-columns: 1fr; }
+  .block-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .block-grid { grid-template-columns: 1fr; }
+}
 </style>

@@ -10,7 +10,7 @@
     <div class="pipeline">
       <div v-for="(stage, i) in stages" :key="stage.id" class="pipeline-segment">
         <div class="pipeline-node" :class="stage.variant">
-          <div class="node-icon">{{ stage.icon }}</div>
+          <SvgIcon :name="stage.icon" :size="22" class="node-icon" />
           <div class="node-body">
             <span class="node-label">{{ stage.label }}</span>
             <span class="node-metric">{{ stage.metric }}</span>
@@ -32,7 +32,7 @@
         <div v-for="branch in branches" :key="branch.provider" class="route-branch" :class="branch.variant">
           <div class="branch-bar" :style="{ width: branch.ratio + '%' }"></div>
           <div class="branch-content">
-            <span class="branch-icon">{{ branch.icon }}</span>
+            <SvgIcon :name="branch.icon" :size="20" class="branch-icon" />
             <span class="branch-name">{{ branch.provider }}</span>
             <span class="branch-tag">{{ branch.tag }}</span>
             <span class="branch-pct">{{ branch.ratio }}%</span>
@@ -45,22 +45,23 @@
 
 <script setup lang="ts">
 import { useMetricsStore } from '../store/metrics'
+import SvgIcon from './SvgIcon.vue'
 
 const metrics = useMetricsStore()
 
 const stages = [
-  { id: 'request', icon: '📥', label: 'Request', metric: `${metrics.rawTokens.toLocaleString()} tok`, variant: 'default' },
-  { id: 'fingerprint', icon: '🔑', label: 'Fingerprint', metric: 'SHA-256', variant: 'default' },
-  { id: 'cache', icon: '⚡', label: 'Cache', metric: '42% hit', variant: 'accent' },
-  { id: 'compiler', icon: '🔧', label: 'Compiler', metric: `${metrics.compiledTokens.toLocaleString()} tok`, variant: 'primary' },
-  { id: 'memory', icon: '🧠', label: 'Memory Lens', metric: `${metrics.memoryReusedTokens.toLocaleString()} reused`, variant: 'secondary' },
-  { id: 'router', icon: '🛡️', label: 'Router', metric: `${metrics.localRatio}% local`, variant: 'good' },
+  { id: 'request', icon: 'inbox', label: 'Request', metric: `${metrics.rawTokens.toLocaleString()} tok`, variant: 'default' },
+  { id: 'fingerprint', icon: 'fingerprint', label: 'Fingerprint', metric: 'SHA-256', variant: 'default' },
+  { id: 'cache', icon: 'zap', label: 'Cache', metric: '42% hit', variant: 'accent' },
+  { id: 'compiler', icon: 'wrench', label: 'Compiler', metric: `${metrics.compiledTokens.toLocaleString()} tok`, variant: 'primary' },
+  { id: 'memory', icon: 'brain', label: 'Memory Lens', metric: `${metrics.memoryReusedTokens.toLocaleString()} reused`, variant: 'secondary' },
+  { id: 'router', icon: 'shield', label: 'Router', metric: `${metrics.localRatio}% local`, variant: 'good' },
 ]
 
 const branches = [
-  { provider: 'Ollama Local', icon: '🏠', tag: 'Sovereign', ratio: metrics.localRatio, variant: 'local' },
-  { provider: 'OpenAI Compatible', icon: '☁️', tag: 'Cloud', ratio: Math.round(metrics.cloudRatio * 0.7), variant: 'cloud' },
-  { provider: 'Mistral Cloud', icon: '🌐', tag: 'Mid-tier', ratio: Math.round(metrics.cloudRatio * 0.3), variant: 'cloud' },
+  { provider: 'Ollama Local', icon: 'home', tag: 'Sovereign', ratio: metrics.localRatio, variant: 'local' },
+  { provider: 'OpenAI Compatible', icon: 'cloud', tag: 'Cloud', ratio: Math.round(metrics.cloudRatio * 0.7), variant: 'cloud' },
+  { provider: 'Mistral Cloud', icon: 'globe', tag: 'Mid-tier', ratio: Math.round(metrics.cloudRatio * 0.3), variant: 'cloud' },
 ]
 </script>
 
@@ -136,13 +137,13 @@ const branches = [
   border-color: rgba(44, 255, 179, 0.3);
   background: linear-gradient(135deg, rgba(44, 255, 179, 0.08), rgba(44, 255, 179, 0.02));
 }
-.node-icon { font-size: 1.5rem; }
+.node-icon { color: var(--muted); }
 .node-body { display: flex; flex-direction: column; gap: 2px; }
 .node-label { font-weight: 600; font-size: 0.9rem; white-space: nowrap; }
 .node-metric { font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
 
 /* ── Edge connectors ── */
-.pipeline-edge { width: 80px; height: 24px; flex-shrink: 0; }
+.pipeline-edge { width: 60px; height: 24px; flex-shrink: 0; }
 .edge-svg { width: 100%; height: 100%; }
 .edge-track { stroke: rgba(255, 255, 255, 0.08); stroke-width: 2; }
 .edge-flow { stroke: var(--primary); stroke-width: 2; stroke-dasharray: 8 6; animation: flow-dash 1.5s linear infinite; }
@@ -180,7 +181,7 @@ const branches = [
   padding: 12px 16px;
   z-index: 1;
 }
-.branch-icon { font-size: 1.2rem; }
+.branch-icon { color: var(--muted); flex-shrink: 0; }
 .branch-name { font-weight: 600; font-size: 0.9rem; flex: 1; }
 .branch-tag {
   padding: 2px 10px;
@@ -200,5 +201,13 @@ const branches = [
 }
 @keyframes flow-dash {
   to { stroke-dashoffset: -28; }
+}
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .pipeline { flex-direction: column; align-items: stretch; }
+  .pipeline-segment { flex-direction: column; align-items: center; }
+  .pipeline-edge { width: 24px; height: 40px; transform: rotate(90deg); }
+  .pipeline-node { width: 100%; }
+  .route-branches { gap: 8px; }
 }
 </style>
