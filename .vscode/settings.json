@@ -1,0 +1,8 @@
+{
+  "yaml.schemas": {},
+  "yaml.validate": true,
+  "yaml.customTags": [],
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml"
+  }
+}
