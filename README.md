@@ -3,7 +3,7 @@
 > **The Sovereign AI Flow Engine** — compile the smallest useful context before every LLM call.
 
 [![CI](https://github.com/katara-project/katara/actions/workflows/ci.yml/badge.svg)](https://github.com/katara-project/katara/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commons%20Clause-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-7.0.0-brightgreen.svg)](VERSION)
 
 ## What makes KATARA different
@@ -109,4 +109,6 @@ It is not yet a fully production-complete gateway across every provider.
 
 ## License
 
-[Apache 2.0](LICENSE) — Copyright 2026 KATARA contributors.
+[AGPL-3.0 + Commons Clause](LICENSE) — Copyright 2024–2026 Christophe Henri Foulon and KATARA contributors.
+
+Free for personal, educational, and non-commercial use. Commercial redistribution or resale requires explicit written authorization from the original author.

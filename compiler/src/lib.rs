@@ -10,7 +10,10 @@ pub struct CompileResult {
 
 pub fn compile_context(raw: &str) -> CompileResult {
     let raw_tokens_estimate = raw.split_whitespace().count();
-    let compiled_tokens_estimate = raw_tokens_estimate.saturating_div(3).max(32);
+    let compiled_tokens_estimate = raw_tokens_estimate
+        .saturating_div(3)
+        .max(32)
+        .min(raw_tokens_estimate);
     CompileResult {
         intent: detect_intent(raw),
         raw_tokens_estimate,
@@ -39,15 +42,26 @@ mod tests {
 
     #[test]
     fn compile_reduces_tokens() {
-        let result = compile_context("a b c d e f g h i j k l");
-        assert_eq!(result.raw_tokens_estimate, 12);
+        let input = (0..120).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" ");
+        let result = compile_context(&input);
+        assert_eq!(result.raw_tokens_estimate, 120);
+        assert_eq!(result.compiled_tokens_estimate, 40);
         assert!(result.compiled_tokens_estimate <= result.raw_tokens_estimate);
     }
 
     #[test]
     fn compile_enforces_minimum() {
         let result = compile_context("hi");
-        assert_eq!(result.compiled_tokens_estimate, 32);
+        // min(max(0, 32), 1) = 1 — capped at raw
+        assert_eq!(result.compiled_tokens_estimate, 1);
+    }
+
+    #[test]
+    fn compile_floor_applies_above_threshold() {
+        // 99 words: 99/3 = 33, max(33,32) = 33, min(33,99) = 33
+        let input = (0..99).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" ");
+        let result = compile_context(&input);
+        assert_eq!(result.compiled_tokens_estimate, 33);
     }
 
     #[test]

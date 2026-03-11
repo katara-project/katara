@@ -2,7 +2,17 @@
 # KATARA policy configuration
 # Controls data handling, optimization targets, and token limits.
 
+terms:
+  - license: "AGPL-3.0 WITH Commons-Clause"
+  - notice: >
+      KATARA is free for personal, educational, and non-commercial use.
+      Commercial redistribution or resale requires explicit written
+      authorization from the original author.
+
 policies:
   sensitive_data: local_only
   optimize_for: cost
   max_tokens_per_request: 4000
+  fallback_provider: ollama-local
+  log_level: info
+  data_residency: eu

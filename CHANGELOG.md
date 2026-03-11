@@ -7,8 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Improved
+
+- License: Apache 2.0 → AGPL-3.0 + Commons Clause (protection against unauthorized commercial resale)
+- `.gitignore`: expanded to 70+ rules covering Rust, Node, IDE, secrets, IaC, Docker, OS artifacts
+- `policies.yaml`: added `terms` property and `fallback_provider`, `log_level`, `data_residency` fields
+
 ### Fixed
 
+- `compiler::compile_context`: compiled tokens now capped at raw token count (`.min(raw_tokens_estimate)`)
+- Added `compile_floor_applies_above_threshold` test to compiler
 - Moved `workflows/` to `.github/workflows/` for GitHub Actions compatibility
 - Fixed README bootstrap script reference (`bootstrap-win.ps1`)
 - Hardened `.gitignore` (added `.env`, `*.zip`, `Thumbs.db`)

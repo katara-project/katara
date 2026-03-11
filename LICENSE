@@ -1,15 +1,61 @@
-Apache License
-Version 2.0, January 2004
-http://www.apache.org/licenses/
+# KATARA — Sovereign AI Context OS
 
-Copyright 2026 KATARA contributors
+Copyright (c) 2024–2026 Christophe Freijanes and KATARA contributors.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+This software is licensed under the GNU Affero General Public License v3.0
+(AGPL-3.0) with the Commons Clause License Condition v1.0 appended below.
 
-    http://www.apache.org/licenses/LICENSE-2.0
+You may obtain a copy of the AGPL-3.0 at:
+  https://www.gnu.org/licenses/agpl-3.0.html
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+────────────────────────────────────────────────────────────
+Commons Clause License Condition v1.0
+────────────────────────────────────────────────────────────
+
+The Software is provided to you by the Licensor under the License, as
+defined below, subject to the following condition:
+
+Without limiting other conditions in the License, the grant of rights under
+the License will not include, and the License does not grant to you, the
+right to Sell the Software.
+
+For purposes of the foregoing, "Sell" means practicing any or all of the
+rights granted to you under the License to provide to third parties, for a
+fee or other consideration (including without limitation fees for hosting or
+consulting/support services related to the Software), a product or service
+whose value derives, entirely or substantially, from the functionality of
+the Software. Any license notice or attribution required by the License
+must also include this Commons Clause License Condition notice.
+
+Licensor:  Christophe Freijanes
+Software:  KATARA
+
+────────────────────────────────────────────────────────────
+Summary of your rights
+────────────────────────────────────────────────────────────
+
+You ARE free to:
+  - Use KATARA for personal, educational, and internal business purposes
+  - Study, modify, and redistribute the source code
+  - Deploy KATARA within your own infrastructure
+  - Build tools, integrations, or services that interact with KATARA
+  - Fork and contribute back to the project
+
+You are NOT free to:
+  - Sell KATARA or a substantially derived product as a paid service
+  - Rebrand and commercialize KATARA without explicit written authorization
+  - Remove or alter this license notice or the original author attribution
+
+For commercial licensing inquiries, contact the Licensor.
+
+────────────────────────────────────────────────────────────
+Attribution
+────────────────────────────────────────────────────────────
+
+KATARA was created by Christophe Freijanes as a sovereign, open, and
+trustworthy AI operating system. The project is driven by progressive values
+of digital sovereignty, transparency, and democratized access to AI
+infrastructure.
+
+If you use, fork, or derive from this project, attribution to the original
+author and the KATARA project is required.
