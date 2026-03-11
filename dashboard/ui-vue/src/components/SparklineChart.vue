@@ -37,7 +37,7 @@ const points = computed(() => {
   const min = Math.min(...props.data)
   const range = max - min || 1
   const pad = 4
-  return props.data.map((v, i) => ({
+  return props.data.map((v: number, i: number) => ({
     x: pad + (i / (props.data.length - 1)) * (props.width - pad * 2),
     y: pad + (1 - (v - min) / range) * (props.height - pad * 2),
   }))

@@ -44,8 +44,8 @@ const padR = 8
 const padT = 12
 const padB = 24
 
-const globalMax = computed(() => Math.max(...props.series.flatMap(s => s.data)))
-const globalMin = computed(() => Math.min(...props.series.flatMap(s => s.data)))
+const globalMax = computed(() => Math.max(...props.series.flatMap((s: Series) => s.data)))
+const globalMin = computed(() => Math.min(...props.series.flatMap((s: Series) => s.data)))
 
 const gridLines = computed(() => {
   const count = 4
@@ -58,9 +58,9 @@ const gridLines = computed(() => {
 
 const seriesData = computed(() => {
   const range = (globalMax.value - globalMin.value) || 1
-  return props.series.map(s => ({
+  return props.series.map((s: Series) => ({
     ...s,
-    points: s.data.map((v, i) => ({
+    points: s.data.map((v: number, i: number) => ({
       x: padL + (i / (s.data.length - 1)) * (props.width - padL - padR),
       y: padT + (1 - (v - globalMin.value) / range) * (props.height - padT - padB),
     })),
