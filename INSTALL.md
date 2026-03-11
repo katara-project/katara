@@ -231,7 +231,7 @@ cargo run -p core
 
 You will see:
 
-```
+```md
 KATARA v7.0.0 — Sovereign AI Context OS
 ────────────────────────────────────────
   Config loaded from configs/

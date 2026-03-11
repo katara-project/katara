@@ -1,6 +1,6 @@
 # KATARA
 
-![KATARA](brand/katara_logo.svg)
+![KATARA](brand/katara_mark.png)
 
 > **The Sovereign AI Flow Engine** — compile the smallest useful context before every LLM call.
 

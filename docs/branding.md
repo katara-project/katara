@@ -21,6 +21,8 @@
 
 - `brand/katara_monogram.svg` - K only, transparent
 - `brand/katara_mark.svg` - app icon mark on dark rounded square
+- `brand/katara_mark.png` - lossless mark for GitHub/Markdown rendering
+- `brand/katara_mark.jpg` - JPG export for platforms requiring JPEG
 - `brand/katara_logo.svg` - horizontal primary logo
 - `brand/katara_logo_stacked.svg` - square/stacked logo
 - `brand/favicon.svg` - favicon
@@ -39,6 +41,7 @@
 - Do not replace the custom K with a font letter.
 - Keep the K gradient direction top-left to bottom-right.
 - On light backgrounds, place logo files on a dark panel or export a dark-text variant first.
+- For GitHub README and Markdown previews, prefer `brand/katara_mark.png` to avoid JPG compression artifacts.
 
 ## Dashboard alignment
 
