@@ -10,11 +10,10 @@
     </linearGradient>
   </defs>
   <rect width="96" height="96" rx="18" fill="url(#bg)"/>
-  <g fill="url(#k)">
-    <rect x="34.3125" y="22.125" width="7.5" height="41.4375"/>
-    <path d="M55.125 22.125H63C63 34.5 58.875 43.3125 51.1875 48.75C48 51 45 52.3125 41.8125 52.875V44.25C46.5 43.3125 50.625 41.25 53.625 37.3125C56.25 33.9375 57.5625 29.25 57.5625 22.125Z"/>
-    <rect x="41.8125" y="42.9375" width="13.6875" height="5.25"/>
-    <path d="M48.9375 48.1875H57.9375L64.875 63.75H54.9375Z"/>
+    <rect x="32" y="20" width="10.5" height="46" rx="5.25" fill="url(#k)"/>
+  <g fill="none" stroke="url(#k)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M42.5 44.8C56.5 44.8 65 35.5 66.4 21.2" stroke-width="8.8"/>
+    <path d="M42.5 44.8L67.5 65.5" stroke-width="8.8"/>
   </g>
   <rect x="4" y="4" width="88" height="88" rx="15" fill="none" stroke="url(#k)" stroke-width="1" opacity="0.25"/>
 </svg>

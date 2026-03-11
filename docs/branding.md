@@ -4,7 +4,7 @@
 | --- | --- |
 | **Product** | KATARA |
 | **Tagline** | The Sovereign AI Flow Engine |
-| **Brand Core** | Custom K monogram traced from `katara-icon.jpg` proportions |
+| **Brand Core** | Custom K monogram inspired by `katara-icon.jpg` |
 
 ## Colors
 

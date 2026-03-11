@@ -25,11 +25,20 @@ pub fn compile_context(raw: &str) -> CompileResult {
 
 pub fn detect_intent(raw: &str) -> String {
     let lower = raw.to_lowercase();
-    if lower.contains("error") || lower.contains("trace") {
+    if lower.contains("error") || lower.contains("trace")
+        || lower.contains("debug") || lower.contains("segfault")
+        || lower.contains("panic") || lower.contains("crash")
+        || lower.contains("bug") || lower.contains("fix")
+    {
         "debug".into()
-    } else if lower.contains("summar") {
+    } else if lower.contains("summar") || lower.contains("explain")
+        || lower.contains("tldr") || lower.contains("recap")
+    {
         "summarize".into()
-    } else if lower.contains("diff") || lower.contains("pull request") {
+    } else if lower.contains("diff") || lower.contains("pull request")
+        || lower.contains("review") || lower.contains("code review")
+        || lower.contains("refactor")
+    {
         "review".into()
     } else {
         "general".into()
@@ -70,13 +79,33 @@ mod tests {
     }
 
     #[test]
+    fn detect_debug_segfault() {
+        assert_eq!(detect_intent("Debug this segfault"), "debug");
+    }
+
+    #[test]
+    fn detect_debug_panic() {
+        assert_eq!(detect_intent("fix this panic in main"), "debug");
+    }
+
+    #[test]
     fn detect_summarize_intent() {
         assert_eq!(detect_intent("please summarize this"), "summarize");
     }
 
     #[test]
+    fn detect_summarize_explain() {
+        assert_eq!(detect_intent("explain the concept of context windowing"), "summarize");
+    }
+
+    #[test]
     fn detect_review_intent() {
         assert_eq!(detect_intent("review this diff"), "review");
+    }
+
+    #[test]
+    fn detect_review_refactor() {
+        assert_eq!(detect_intent("refactor this function"), "review");
     }
 
     #[test]

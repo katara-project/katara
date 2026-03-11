@@ -1,12 +1,18 @@
 ---
 # KATARA routing configuration
-# Defines how requests are dispatched to providers.
+#
+# Maps detected intents to providers declared in providers.yaml.
+# sensitive_override forces all sensitive requests to a local provider.
+# Provider names must match keys in providers.yaml exactly.
 
 routing:
   strategy: hybrid
-  default_provider: ollama-local
-  fallback_provider: openai-compatible
+  default_provider: ollama-llama3
+  fallback_provider: ollama-llama3
+  sensitive_override: ollama-llama3
 
   task_routing:
-    debug: mistral-cloud
-    general: openai-compatible
+    debug: ollama-mistral
+    summarize: ollama-llama3
+    review: ollama-codellama
+    general: ollama-llama3

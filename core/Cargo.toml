@@ -15,6 +15,7 @@ tower-http = { workspace = true }
 compiler = { path = "../compiler" }
 memory = { path = "../memory" }
 router = { path = "../router" }
+adapters = { path = "../adapters" }
 metrics = { path = "../metrics" }
 fingerprint = { path = "../fingerprint" }
 cache = { path = "../cache" }
