@@ -1,0 +1,17 @@
+{
+  "name": "katara-mcp",
+  "version": "7.0.1",
+  "type": "module",
+  "description": "KATARA MCP Server for VS Code Copilot Chat",
+  "main": "katara-server.mjs",
+  "scripts": {
+    "test": "node test-mcp.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1"
+  }
+}
