@@ -12,8 +12,6 @@
  *   katara_metrics   — Get current metrics snapshot
  */
 
-import { createInterface } from "node:readline";
-
 const KATARA_URL = process.env.KATARA_URL || "http://127.0.0.1:8080";
 
 // ── JSON-RPC helpers ──────────────────────────────────
@@ -183,31 +181,35 @@ async function handleMessage(msg) {
   }
 }
 
-// ── stdio transport (Content-Length framing) ──────────
+// -- stdio transport (Content-Length framing) ----------
 
-let buffer = "";
+let buffer = Buffer.alloc(0);
 
-process.stdin.setEncoding("utf8");
+process.stdin.resume();
 process.stdin.on("data", (chunk) => {
-  buffer += chunk;
+  buffer = Buffer.concat([buffer, typeof chunk === "string" ? Buffer.from(chunk) : chunk]);
+  processBuffer();
+});
 
+function processBuffer() {
   while (true) {
-    const headerEnd = buffer.indexOf("\r\n\r\n");
-    if (headerEnd === -1) break;
+    // Look for header/body separator: \r\n\r\n
+    const sep = findSeparator(buffer);
+    if (sep === -1) break;
 
-    const header = buffer.slice(0, headerEnd);
+    const header = buffer.slice(0, sep).toString("ascii");
     const match = header.match(/Content-Length:\s*(\d+)/i);
     if (!match) {
-      buffer = buffer.slice(headerEnd + 4);
+      buffer = buffer.slice(sep + 4);
       continue;
     }
 
     const contentLength = parseInt(match[1], 10);
-    const bodyStart = headerEnd + 4;
+    const bodyStart = sep + 4;
 
     if (buffer.length < bodyStart + contentLength) break;
 
-    const body = buffer.slice(bodyStart, bodyStart + contentLength);
+    const body = buffer.slice(bodyStart, bodyStart + contentLength).toString("utf8");
     buffer = buffer.slice(bodyStart + contentLength);
 
     try {
@@ -217,6 +219,13 @@ process.stdin.on("data", (chunk) => {
       // Ignore malformed JSON
     }
   }
-});
+}
+
+function findSeparator(buf) {
+  for (let i = 0; i < buf.length - 3; i++) {
+    if (buf[i] === 13 && buf[i+1] === 10 && buf[i+2] === 13 && buf[i+3] === 10) return i;
+  }
+  return -1;
+}
 
 process.stdin.on("end", () => process.exit(0));

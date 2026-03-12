@@ -22,6 +22,11 @@ Write-Host ''
 $rootDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $rootDir
 
+# -- Ensure cargo is in PATH for this session -----------
+if (Test-Path "$env:USERPROFILE\.cargo\bin") {
+    $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+}
+
 # -- Load .env secrets into current process --------------
 if (Test-Path '.env') {
     Get-Content '.env' | ForEach-Object {
@@ -89,10 +94,28 @@ if (Get-Command ollama -ErrorAction SilentlyContinue) {
 }
 
 # -- 2. Start KATARA backend ----------------------------
+# Kill any existing process on port 8080 to avoid AddrInUse
+$existing = Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue
+if ($existing) {
+    $pids = $existing | Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($p in $pids) {
+        $proc = Get-Process -Id $p -ErrorAction SilentlyContinue
+        if ($proc) {
+            Write-Host "[..] Stopping existing process on :8080 (PID $p - $($proc.ProcessName))" -ForegroundColor Yellow
+            Stop-Process -Id $p -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Start-Sleep -Seconds 1
+}
+
 Write-Host '==> Starting KATARA backend...' -ForegroundColor Cyan
 $backendJob = Start-Job -ScriptBlock {
     param($dir)
     Set-Location $dir
+    # Ensure cargo is in PATH inside the job
+    if (Test-Path "$env:USERPROFILE\.cargo\bin") {
+        $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+    }
     # Forward .env into job
     if (Test-Path '.env') {
         Get-Content '.env' | ForEach-Object {
