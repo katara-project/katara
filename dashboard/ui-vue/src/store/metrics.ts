@@ -1,6 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onUnmounted } from 'vue'
 
+export interface IntentStat {
+  requests: number
+  raw_tokens: number
+  compiled_tokens: number
+}
+
 export interface MetricsSnapshot {
   ts: number
   total_requests: number
@@ -17,6 +23,7 @@ export interface MetricsSnapshot {
   routes_local: number
   routes_cloud: number
   routes_midtier: number
+  intent_stats: Record<string, IntentStat>
 }
 
 const SSE_URL = 'http://localhost:8080/v1/metrics/stream'
@@ -40,6 +47,7 @@ export const useMetricsStore = defineStore('metrics', () => {
   const routesMidtier = ref(0)
   const connected = ref(false)
   const lastTs = ref(0)
+  const intentStats = ref<Record<string, IntentStat>>({})
 
   const cacheHitRatio = computed(() => {
     const total = cacheHits.value + cacheMisses.value
@@ -65,6 +73,7 @@ export const useMetricsStore = defineStore('metrics', () => {
     routesLocal.value = s.routes_local
     routesCloud.value = s.routes_cloud
     routesMidtier.value = s.routes_midtier
+    intentStats.value = s.intent_stats ?? {}
     lastTs.value = s.ts
   }
 
@@ -117,6 +126,7 @@ export const useMetricsStore = defineStore('metrics', () => {
     routesMidtier,
     connected,
     lastTs,
+    intentStats,
     connect,
     disconnect,
   }

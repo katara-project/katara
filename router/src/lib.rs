@@ -26,6 +26,7 @@ struct TaskRouting {
     summarize: Option<String>,
     review: Option<String>,
     general: Option<String>,
+    ocr: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -67,13 +68,13 @@ impl RouterConfig {
     pub fn load(providers_path: &Path, routing_path: &Path) -> Result<Self, String> {
         let prov_str = std::fs::read_to_string(providers_path)
             .map_err(|e| format!("Cannot read {}: {e}", providers_path.display()))?;
-        let prov_file: ProvidersFile = serde_yaml::from_str(&prov_str)
-            .map_err(|e| format!("Invalid providers YAML: {e}"))?;
+        let prov_file: ProvidersFile =
+            serde_yaml::from_str(&prov_str).map_err(|e| format!("Invalid providers YAML: {e}"))?;
 
         let rout_str = std::fs::read_to_string(routing_path)
             .map_err(|e| format!("Cannot read {}: {e}", routing_path.display()))?;
-        let rout_file: RoutingFile = serde_yaml::from_str(&rout_str)
-            .map_err(|e| format!("Invalid routing YAML: {e}"))?;
+        let rout_file: RoutingFile =
+            serde_yaml::from_str(&rout_str).map_err(|e| format!("Invalid routing YAML: {e}"))?;
 
         let r = &rout_file.routing;
         let default = r.default_provider.clone().unwrap_or("ollama-local".into());
@@ -82,10 +83,21 @@ impl RouterConfig {
 
         let mut task_map = HashMap::new();
         if let Some(tr) = &r.task_routing {
-            if let Some(v) = &tr.debug { task_map.insert("debug".into(), v.clone()); }
-            if let Some(v) = &tr.summarize { task_map.insert("summarize".into(), v.clone()); }
-            if let Some(v) = &tr.review { task_map.insert("review".into(), v.clone()); }
-            if let Some(v) = &tr.general { task_map.insert("general".into(), v.clone()); }
+            if let Some(v) = &tr.debug {
+                task_map.insert("debug".into(), v.clone());
+            }
+            if let Some(v) = &tr.summarize {
+                task_map.insert("summarize".into(), v.clone());
+            }
+            if let Some(v) = &tr.review {
+                task_map.insert("review".into(), v.clone());
+            }
+            if let Some(v) = &tr.general {
+                task_map.insert("general".into(), v.clone());
+            }
+            if let Some(v) = &tr.ocr {
+                task_map.insert("ocr".into(), v.clone());
+            }
         }
 
         Ok(Self {
@@ -100,22 +112,28 @@ impl RouterConfig {
     /// Build from inline defaults (no files needed — for tests & fallback).
     pub fn defaults() -> Self {
         let mut providers = HashMap::new();
-        providers.insert("ollama-local".into(), ProviderConfig {
-            provider_type: Some("openai-compatible".into()),
-            base_url: "http://localhost:11434/v1".into(),
-            model: Some("llama3.1".into()),
-            deployment: Some("on-prem".into()),
-            description: Some("Local Ollama".into()),
-            api_key_env: None,
-        });
-        providers.insert("openai-compatible".into(), ProviderConfig {
-            provider_type: Some("openai-compatible".into()),
-            base_url: "https://api.openai.com/v1".into(),
-            model: Some("gpt-4o-mini".into()),
-            deployment: Some("cloud".into()),
-            description: Some("OpenAI cloud".into()),
-            api_key_env: Some("OPENAI_API_KEY".into()),
-        });
+        providers.insert(
+            "ollama-local".into(),
+            ProviderConfig {
+                provider_type: Some("openai-compatible".into()),
+                base_url: "http://localhost:11434/v1".into(),
+                model: Some("llama3.1".into()),
+                deployment: Some("on-prem".into()),
+                description: Some("Local Ollama".into()),
+                api_key_env: None,
+            },
+        );
+        providers.insert(
+            "openai-compatible".into(),
+            ProviderConfig {
+                provider_type: Some("openai-compatible".into()),
+                base_url: "https://api.openai.com/v1".into(),
+                model: Some("gpt-4o-mini".into()),
+                deployment: Some("cloud".into()),
+                description: Some("OpenAI cloud".into()),
+                api_key_env: Some("OPENAI_API_KEY".into()),
+            },
+        );
 
         let mut task_routing = HashMap::new();
         task_routing.insert("debug".into(), "ollama-local".into());
@@ -168,7 +186,11 @@ impl RouterConfig {
             (self.fallback_provider.clone(), cfg)
         } else {
             // Ultimate fallback — first available provider
-            let (k, v) = self.providers.iter().next().expect("No providers configured");
+            let (k, v) = self
+                .providers
+                .iter()
+                .next()
+                .expect("No providers configured");
             (k.clone(), v)
         }
     }

@@ -64,6 +64,32 @@ It sits between clients and LLM providers, optimizing every request.
 | `cache` | Prompt fingerprint lookup, semantic caching |
 | `fingerprint` | Stable hashing for prompt deduplication |
 
+## MCP Integration Layer
+
+KATARA exposes itself as an MCP (Model Context Protocol) tool server for IDE agents like VS Code Copilot Chat.
+
+```text
+┌──────────────────────┐     stdio (JSON-RPC 2.0)     ┌─────────────────────────┐
+│  VS Code Copilot     │ ────────────────────────────► │  mcp/katara-server.mjs  │
+│  Chat (@katara)      │ ◄──────────────────────────── │  Content-Length framing  │
+└──────────────────────┘                               └──────────┬──────────────┘
+                                                                  │ HTTP
+                                                       ┌──────────▼──────────────┐
+                                                       │  KATARA Backend :8080   │
+                                                       │  /v1/compile            │
+                                                       │  /v1/chat/completions   │
+                                                       │  /v1/providers          │
+                                                       │  /v1/metrics            │
+                                                       └─────────────────────────┘
+```
+
+| MCP Tool | Backend Endpoint | Description |
+| --- | --- | --- |
+| `katara_compile` | `POST /v1/compile` | Compile context through the full pipeline |
+| `katara_chat` | `POST /v1/chat/completions` | Compile + forward to routed LLM |
+| `katara_providers` | `GET /v1/providers` | List configured providers |
+| `katara_metrics` | `GET /v1/metrics` | Fetch live efficiency metrics |
+
 ## Design principles
 
 - **Compile before routing** — never send raw context to an LLM.

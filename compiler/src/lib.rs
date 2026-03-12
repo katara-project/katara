@@ -25,18 +25,26 @@ pub fn compile_context(raw: &str) -> CompileResult {
 
 pub fn detect_intent(raw: &str) -> String {
     let lower = raw.to_lowercase();
-    if lower.contains("error") || lower.contains("trace")
-        || lower.contains("debug") || lower.contains("segfault")
-        || lower.contains("panic") || lower.contains("crash")
-        || lower.contains("bug") || lower.contains("fix")
+    if lower.contains("error")
+        || lower.contains("trace")
+        || lower.contains("debug")
+        || lower.contains("segfault")
+        || lower.contains("panic")
+        || lower.contains("crash")
+        || lower.contains("bug")
+        || lower.contains("fix")
     {
         "debug".into()
-    } else if lower.contains("summar") || lower.contains("explain")
-        || lower.contains("tldr") || lower.contains("recap")
+    } else if lower.contains("summar")
+        || lower.contains("explain")
+        || lower.contains("tldr")
+        || lower.contains("recap")
     {
         "summarize".into()
-    } else if lower.contains("diff") || lower.contains("pull request")
-        || lower.contains("review") || lower.contains("code review")
+    } else if lower.contains("diff")
+        || lower.contains("pull request")
+        || lower.contains("review")
+        || lower.contains("code review")
         || lower.contains("refactor")
     {
         "review".into()
@@ -51,7 +59,10 @@ mod tests {
 
     #[test]
     fn compile_reduces_tokens() {
-        let input = (0..120).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" ");
+        let input = (0..120)
+            .map(|i| format!("w{i}"))
+            .collect::<Vec<_>>()
+            .join(" ");
         let result = compile_context(&input);
         assert_eq!(result.raw_tokens_estimate, 120);
         assert_eq!(result.compiled_tokens_estimate, 40);
@@ -68,7 +79,10 @@ mod tests {
     #[test]
     fn compile_floor_applies_above_threshold() {
         // 99 words: 99/3 = 33, max(33,32) = 33, min(33,99) = 33
-        let input = (0..99).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" ");
+        let input = (0..99)
+            .map(|i| format!("w{i}"))
+            .collect::<Vec<_>>()
+            .join(" ");
         let result = compile_context(&input);
         assert_eq!(result.compiled_tokens_estimate, 33);
     }
@@ -95,7 +109,10 @@ mod tests {
 
     #[test]
     fn detect_summarize_explain() {
-        assert_eq!(detect_intent("explain the concept of context windowing"), "summarize");
+        assert_eq!(
+            detect_intent("explain the concept of context windowing"),
+            "summarize"
+        );
     }
 
     #[test]

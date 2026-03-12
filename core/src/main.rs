@@ -17,6 +17,13 @@ use tower_http::cors::{Any, CorsLayer};
 
 /// ── Shared application state ──────────────────────────
 #[derive(Debug, Clone, Serialize)]
+struct IntentStats {
+    requests: u64,
+    raw_tokens: usize,
+    compiled_tokens: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
 struct MetricsSnapshot {
     ts: u64,
     total_requests: u64,
@@ -33,6 +40,7 @@ struct MetricsSnapshot {
     routes_local: u64,
     routes_cloud: u64,
     routes_midtier: u64,
+    intent_stats: std::collections::HashMap<String, IntentStats>,
 }
 
 #[derive(Debug)]
@@ -60,6 +68,7 @@ impl MetricsCollector {
                 routes_local: 0,
                 routes_cloud: 0,
                 routes_midtier: 0,
+                intent_stats: std::collections::HashMap::new(),
             },
             sem_cache: cache::SemanticCache::new(),
         }
@@ -72,6 +81,7 @@ impl MetricsCollector {
         reused: usize,
         provider: &str,
         cache_hit: bool,
+        intent: &str,
     ) {
         let s = &mut self.snapshot;
         s.total_requests += 1;
@@ -79,7 +89,11 @@ impl MetricsCollector {
         s.compiled_tokens += compiled;
         s.memory_reused_tokens += reused;
 
-        if cache_hit { s.cache_hits += 1; } else { s.cache_misses += 1; }
+        if cache_hit {
+            s.cache_hits += 1;
+        } else {
+            s.cache_misses += 1;
+        }
 
         // Classify deployment type from provider name
         if provider.contains("local") || provider.contains("ollama") {
@@ -91,12 +105,18 @@ impl MetricsCollector {
         }
 
         let avoided = s.raw_tokens.saturating_sub(s.compiled_tokens);
-        s.efficiency_score = if s.raw_tokens == 0 { 0.0 }
-            else { (avoided as f32 / s.raw_tokens as f32) * 100.0 };
+        s.efficiency_score = if s.raw_tokens == 0 {
+            0.0
+        } else {
+            (avoided as f32 / s.raw_tokens as f32) * 100.0
+        };
 
         let total_routes = s.routes_local + s.routes_cloud + s.routes_midtier;
-        s.local_ratio = if total_routes == 0 { 0.0 }
-            else { (s.routes_local as f32 / total_routes as f32) * 100.0 };
+        s.local_ratio = if total_routes == 0 {
+            0.0
+        } else {
+            (s.routes_local as f32 / total_routes as f32) * 100.0
+        };
 
         s.history_raw.push(s.raw_tokens);
         s.history_compiled.push(s.compiled_tokens);
@@ -107,10 +127,24 @@ impl MetricsCollector {
             s.history_reused.remove(0);
         }
 
+        let entry = s
+            .intent_stats
+            .entry(intent.to_string())
+            .or_insert(IntentStats {
+                requests: 0,
+                raw_tokens: 0,
+                compiled_tokens: 0,
+            });
+        entry.requests += 1;
+        entry.raw_tokens += raw;
+        entry.compiled_tokens += compiled;
+
         s.ts = now_epoch();
     }
 
-    fn snapshot(&self) -> &MetricsSnapshot { &self.snapshot }
+    fn snapshot(&self) -> &MetricsSnapshot {
+        &self.snapshot
+    }
 }
 
 /// Combined shared state
@@ -122,7 +156,10 @@ struct AppState {
 type SharedState = Arc<AppState>;
 
 fn now_epoch() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 /// Try to load YAML configs from standard paths relative to cwd.
@@ -150,7 +187,7 @@ fn load_config() -> router::RouterConfig {
     router::RouterConfig::defaults()
 }
 
-/// ── Handlers ──────────────────────────────────────────
+// -- Handlers ---------------------------------------------------
 
 async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "ok", "service": "katara-core", "version": "7.0.0" }))
@@ -184,7 +221,9 @@ async fn compile(
 
     let result = compiler::compile_context(raw);
     let mem = memory::summarize_memory(result.raw_tokens_estimate);
-    let route = state.router_config.choose_provider(&result.intent, sensitive);
+    let route = state
+        .router_config
+        .choose_provider(&result.intent, sensitive);
 
     let efficiency = metrics::compute(
         result.raw_tokens_estimate,
@@ -201,6 +240,7 @@ async fn compile(
         mem.reused_tokens,
         &route.provider,
         cache_hit,
+        &result.intent,
     );
     drop(collector);
 
@@ -233,7 +273,8 @@ async fn chat_completions(
     Json(payload): Json<ChatRequest>,
 ) -> Json<serde_json::Value> {
     // Extract last user message as the raw context
-    let raw: String = payload.messages
+    let raw: String = payload
+        .messages
         .as_ref()
         .and_then(|msgs| msgs.iter().rev().find(|m| m["role"] == "user"))
         .and_then(|m| m["content"].as_str())
@@ -245,7 +286,9 @@ async fn chat_completions(
     let fp = fingerprint::fingerprint(&raw);
     let result = compiler::compile_context(&raw);
     let mem = memory::summarize_memory(result.raw_tokens_estimate);
-    let route = state.router_config.choose_provider(&result.intent, sensitive);
+    let route = state
+        .router_config
+        .choose_provider(&result.intent, sensitive);
 
     let efficiency = metrics::compute(
         result.raw_tokens_estimate,
@@ -267,23 +310,20 @@ async fn chat_completions(
             mem.reused_tokens,
             &route.provider,
             cache_hit,
+            &result.intent,
         );
     } // MutexGuard dropped here, before .await
 
     // 3. Resolve API key from env
-    let api_key = route.api_key_env
+    let api_key = route
+        .api_key_env
         .as_deref()
         .and_then(|env_var| std::env::var(env_var).ok());
 
     // 4. Forward to LLM provider
     let model = payload.model.clone().unwrap_or_else(|| route.model.clone());
 
-    match adapters::forward(
-        &route.base_url,
-        &model,
-        &raw,
-        api_key.as_deref(),
-    ).await {
+    match adapters::forward(&route.base_url, &model, &raw, api_key.as_deref()).await {
         Ok(fwd) => {
             // Return OpenAI-compatible format
             Json(json!({
@@ -312,20 +352,18 @@ async fn chat_completions(
                 }
             }))
         }
-        Err(e) => {
-            Json(json!({
-                "error": {
-                    "message": e,
-                    "type": "provider_error",
-                    "katara": {
-                        "provider": route.provider,
-                        "model": model,
-                        "intent": result.intent,
-                        "compiled_tokens": result.compiled_tokens_estimate
-                    }
+        Err(e) => Json(json!({
+            "error": {
+                "message": e,
+                "type": "provider_error",
+                "katara": {
+                    "provider": route.provider,
+                    "model": model,
+                    "intent": result.intent,
+                    "compiled_tokens": result.compiled_tokens_estimate
                 }
-            }))
-        }
+            }
+        })),
     }
 }
 

@@ -2,10 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 /// Known adapter styles.
-pub const ADAPTER_STYLES: &[&str] = &[
-    "openai-compatible",
-    "google",
-];
+pub const ADAPTER_STYLES: &[&str] = &["openai-compatible", "google"];
 
 /// Response from a forwarded LLM call.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,7 +38,8 @@ pub async fn forward(
     });
 
     let client = reqwest::Client::new();
-    let mut req = client.post(&url)
+    let mut req = client
+        .post(&url)
         .header("Content-Type", "application/json")
         .json(&body);
 
@@ -57,7 +55,9 @@ pub async fn forward(
         return Err(format!("Provider returned {status}: {text}"));
     }
 
-    let json: serde_json::Value = resp.json().await
+    let json: serde_json::Value = resp
+        .json()
+        .await
         .map_err(|e| format!("Invalid JSON from provider: {e}"))?;
 
     // Parse OpenAI-compatible response
@@ -68,7 +68,9 @@ pub async fn forward(
         .to_string();
 
     let prompt_tokens = json["usage"]["prompt_tokens"].as_u64().map(|v| v as usize);
-    let completion_tokens = json["usage"]["completion_tokens"].as_u64().map(|v| v as usize);
+    let completion_tokens = json["usage"]["completion_tokens"]
+        .as_u64()
+        .map(|v| v as usize);
 
     Ok(ForwardResponse {
         provider: base_url.to_string(),

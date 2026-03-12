@@ -13,26 +13,39 @@ providers:
   ollama-llama3:
     type: openai-compatible
     base_url: http://localhost:11434/v1
-    model: llama3.1
+    model: llama3:latest
     deployment: on-prem
-    description: Llama 3.1 8B — general tasks, summarization
+    description: Llama 3 — general tasks, summarization
 
-  ollama-codellama:
+  ollama-qwen2.5-coder:
     type: openai-compatible
     base_url: http://localhost:11434/v1
-    model: codellama
+    model: qwen2.5-coder:7b
     deployment: on-prem
-    description: CodeLlama — code generation, review
+    description: Qwen 2.5 Coder 7B — code generation, review
 
   ollama-mistral:
     type: openai-compatible
     base_url: http://localhost:11434/v1
-    model: mistral
+    model: mistral:7b-instruct
     deployment: on-prem
     description: Mistral 7B local — debug, analysis
 
+  ollama-ocr-deepseek:
+    type: openai-compatible
+    base_url: http://localhost:11434/v1
+    model: deepseek-ocr:3b
+    deployment: on-prem
+    description: DeepSeek OCR 3B — optical character recognition
+
   # ── Cloud providers (optional) ──────────────────────
-  # Uncomment and set API key env vars to enable.
+  mistral-ocr-cloud:
+    type: mistral
+    base_url: https://api.mistral.ai/v1
+    model: mistral-ocr-2512
+    deployment: cloud
+    api_key_env: MISTRAL_API_KEY
+    description: Mistral OCR 2512 cloud endpoint
 
   # openai-cloud:
   #   type: openai-compatible
@@ -41,11 +54,3 @@ providers:
   #   deployment: cloud
   #   api_key_env: OPENAI_API_KEY
   #   description: OpenAI GPT-4o-mini cloud
-
-  # mistral-cloud:
-  #   type: mistral
-  #   base_url: https://api.mistral.ai/v1
-  #   model: mistral-large-latest
-  #   deployment: cloud
-  #   api_key_env: MISTRAL_API_KEY
-  #   description: Mistral Large cloud endpoint

@@ -1,6 +1,6 @@
 # Installation & Configuration Guide
 
-> **KATARA v7.0.0** — Sovereign AI Context Operating System
+> **KATARA v7.0.1** — Sovereign AI Context Operating System
 
 ---
 
@@ -135,14 +135,14 @@ providers:
 
 ### Provider fields reference
 
-| Field           | Required | Description                                         |
-|-----------------|----------|-----------------------------------------------------|
+| Field           | Required | Description                                              |
+|-----------------|----------|----------------------------------------------------------|
 | `type`          | no       | Adapter style (`openai-compatible`, `mistral`, `google`) |
-| `base_url`      | **yes**  | API root URL. For Ollama: `http://localhost:11434/v1` |
-| `model`         | **yes**  | Model name as the provider expects it                |
-| `deployment`    | no       | `on-prem` or `cloud` (informational)                |
-| `description`   | no       | Human-readable note                                  |
-| `api_key_env`   | no       | Name of the env var holding the API key              |
+| `base_url`      | **yes**  | API root URL. For Ollama: `http://localhost:11434/v1`    |
+| `model`         | **yes**  | Model name as the provider expects it                    |
+| `deployment`    | no       | `on-prem` or `cloud` (informational)                     |
+| `description`   | no       | Human-readable note                                      |
+| `api_key_env`   | no       | Name of the env var holding the API key                  |
 
 ---
 
@@ -166,23 +166,23 @@ routing:
 
 ### Routing fields reference
 
-| Field               | Description                                                   |
-|----------------------|---------------------------------------------------------------|
-| `default_provider`   | Provider for unrecognized intents                            |
+| Field                | Description                                                       |
+|----------------------|-------------------------------------------------------------------|
+| `default_provider`   | Provider for unrecognized intents                                 |
 | `fallback_provider`  | Used if the selected provider name is missing from providers.yaml |
-| `sensitive_override` | All requests with `"sensitive": true` go here (sovereign)     |
-| `task_routing.*`     | Maps intent → provider name (from providers.yaml keys)        |
+| `sensitive_override` | All requests with `"sensitive": true` go here (sovereign)         |
+| `task_routing.*`     | Maps intent → provider name (from providers.yaml keys)            |
 
 ### How intent detection works
 
 KATARA automatically detects intent from the raw context:
 
-| Detected keyword      | Intent       |
+| Detected keyword       | Intent      |
 |------------------------|-------------|
 | `error`, `trace`       | `debug`     |
 | `summar`               | `summarize` |
 | `diff`, `pull request` | `review`    |
-| anything else          | `general`   |
+| `anything else`        | `general`   |
 
 ---
 
@@ -203,7 +203,32 @@ policies:
 
 ## Run KATARA
 
-### Step 1: Start Ollama (if using local models)
+### Automatic (recommended)
+
+Start **all services** (Ollama + backend + dashboard) with a single command:
+
+**Windows PowerShell:**
+
+```powershell
+.\scripts\start-win.ps1
+```
+
+**Linux / macOS:**
+
+```bash
+./scripts/start.sh
+```
+
+This will:
+1. Load `.env` secrets
+2. Start Ollama (or detect it's already running)
+3. Start the KATARA Rust backend on `:8080`
+4. Start the Vue dashboard on `:5173`
+5. Stream backend logs — press **Ctrl+C** to stop everything
+
+### Manual (step by step)
+
+#### Step 1: Start Ollama (if using local models)
 
 ```bash
 ollama serve
@@ -223,9 +248,23 @@ Verify Ollama is running:
 curl http://localhost:11434/v1/models
 ```
 
-### Step 2: Start KATARA backend
+#### Step 2: Load secrets and start KATARA backend
+
+**Linux / macOS:**
 
 ```bash
+export $(grep -v '^#' .env | xargs)
+cargo run -p core
+```
+
+**Windows PowerShell:**
+
+```powershell
+Get-Content .env | ForEach-Object {
+  if ($_ -match '^([^#=]+)=(.*)$') {
+    [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+  }
+}
 cargo run -p core
 ```
 
@@ -247,7 +286,7 @@ Listening on 127.0.0.1:8080
   GET  /v1/metrics/stream     — SSE live stream
 ```
 
-### Step 3: Start the dashboard
+#### Step 3: Start the dashboard
 
 ```bash
 cd dashboard/ui-vue
@@ -354,12 +393,12 @@ ollama list
 
 Each model you pull in Ollama should have a corresponding entry in `configs/providers/providers.yaml`:
 
-| Ollama model | providers.yaml key | Suggested routing |
-|---|---|---|
-| `llama3.1` | `ollama-llama3` | default, general, summarize |
-| `codellama` | `ollama-codellama` | review (code) |
-| `mistral` | `ollama-mistral` | debug |
-| `phi3` | `ollama-phi3` | lightweight fallback |
+| Ollama model | providers.yaml key | Suggested routing           |
+|--------------|--------------------|-----------------------------|
+| `llama3.1`   | `ollama-llama3`    | default, general, summarize |
+| `codellama`  | `ollama-codellama` | review (code)               |
+| `mistral`    | `ollama-mistral`   | debug                       |
+| `phi3`       | `ollama-phi3`      | lightweight fallback        |
 
 ---
 
@@ -394,17 +433,45 @@ $env:OPENAI_API_KEY = "sk-..."       # Windows PowerShell
 
 ### Mistral AI
 
+1. Copy the env template and fill in your key:
+
 ```bash
-export MISTRAL_API_KEY="..."
+cp .env.example .env
+# Edit .env:
+# MISTRAL_API_KEY=your-key-here
 ```
+
+2. On Windows PowerShell, load the `.env` before starting KATARA:
+
+```powershell
+Get-Content .env | ForEach-Object {
+  if ($_ -match '^([^#=]+)=(.*)$') {
+    [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+  }
+}
+cargo run -p core
+```
+
+On Linux / macOS:
+
+```bash
+export $(grep -v '^#' .env | xargs)
+cargo run -p core
+```
+
+> **Note:** `.env` is listed in `.gitignore` — your keys will **never** be pushed to GitHub.
+> Only `.env.example` (with placeholder values) is committed.
+
+3. Provider config in `configs/providers/providers.yaml`:
 
 ```yaml
   mistral-cloud:
     type: mistral
     base_url: https://api.mistral.ai/v1
-    model: mistral-large-latest
+    model: mistral-ocr-2512
     deployment: cloud
     api_key_env: MISTRAL_API_KEY
+    description: Mistral OCR 2512 cloud endpoint
 ```
 
 ---
@@ -458,7 +525,7 @@ kubectl create configmap katara-config \
 
 ## Architecture
 
-```
+```md
 ┌─────────────────────┐         POST /v1/chat/completions   ┌──────────────────────────┐
 │   Client (curl,     │ ──────────────────────────────────► │   KATARA Rust Backend    │
 │   VS Code ext,      │                                     │                          │
@@ -470,14 +537,63 @@ kubectl create configmap katara-config \
 │   (Pinia + SSE)     │     every 2 seconds                 │  ⑥ forward to LLM        │
 └─────────────────────┘                                     └──────┬───────────────────┘
                                                                    │
-                                                            ┌──────┴───────────────────┐
+                                                            ┌──────┴────────────────────┐
                                                             │  Ollama (localhost:11434) │
-                                                            │   llama3.1 / codellama   │
-                                                            │   mistral / phi3 / ...   │
-                                                            │                          │
-                                                            │  Cloud (optional)        │
-                                                            │   OpenAI / Mistral AI    │
-                                                            └──────────────────────────┘
+                                                            │   llama3.1 / codellama    │
+                                                            │   mistral / phi3 / ...    │
+                                                            │                           │
+                                                            │  Cloud (optional)         │
+                                                            │   OpenAI / Mistral AI     │
+                                                            └───────────────────────────┘
+```
+
+---
+
+## VS Code Agent (MCP)
+
+KATARA includes an MCP (Model Context Protocol) server that integrates with VS Code Copilot Chat.
+
+### Requires
+
+- VS Code with GitHub Copilot Chat extension
+- Node.js 20+
+- KATARA backend running on port 8080
+
+### Setup
+
+1. The MCP server is already registered in `.vscode/mcp.json`. VS Code will detect it automatically.
+2. Start the KATARA backend: `cargo run -p core`
+3. In Copilot Chat, type `@katara` followed by your request.
+
+### Available tools
+
+| Tool | Description | Example |
+|------|-------------|---------|
+| `katara_compile` | Compile raw context (no LLM call) | `@katara compile this error trace` |
+| `katara_chat` | Compile + forward to LLM | `@katara explain circuit breaker pattern` |
+| `katara_providers` | List configured providers | `@katara list providers` |
+| `katara_metrics` | Fetch live metrics snapshot | `@katara show metrics` |
+
+### Manual test (without VS Code)
+
+```bash
+node mcp/katara-server.mjs
+# Communicates via stdio with Content-Length framing (JSON-RPC 2.0)
+```
+
+---
+
+## Google Drive Workspace
+
+If your workspace is stored on Google Drive (e.g. via Google Drive File Stream), the Rust `target/` folder will cause **file-locking errors** during compilation.
+
+The project includes `.cargo/config.toml` which redirects build output to `C:/katara-target` (local disk). This is applied automatically — no manual action needed.
+
+To change the path, edit `.cargo/config.toml`:
+
+```toml
+[build]
+target-dir = "C:/katara-target"
 ```
 
 ---
