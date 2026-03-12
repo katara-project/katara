@@ -3,7 +3,8 @@
     "katara": {
       "type": "stdio",
       "command": "node",
-      "args": ["mcp/katara-server.mjs"],
+      "args": ["katara-server.mjs"],
+      "cwd": "${workspaceFolder}/mcp",
       "env": {
         "KATARA_URL": "http://127.0.0.1:8080"
       }

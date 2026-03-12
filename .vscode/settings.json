@@ -4,5 +4,18 @@
   "yaml.customTags": [],
   "[yaml]": {
     "editor.defaultFormatter": "redhat.vscode-yaml"
+  },
+  "chat.mcp.serverSampling": {
+    "katara/.vscode/mcp.json: katara": {
+      "allowedModels": [
+        "copilotcli/claude-sonnet-4.6",
+        "copilot/gpt-5.3-codex",
+        "claude-code/claude-sonnet-4.5",
+        "copilotcli/claude-sonnet-4.5",
+        "openrouter/OpenRouter/google/gemma-3-27b-it:free",
+        "copilotcli/gpt-5-mini",
+        "openrouter/OpenRouter/meta-llama/llama-3.3-70b-instruct:free"
+      ]
+    }
   }
 }

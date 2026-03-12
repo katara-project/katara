@@ -89,10 +89,31 @@ if (Get-Command ollama -ErrorAction SilentlyContinue) {
 }
 
 # -- 2. Start KATARA backend ----------------------------
+# Kill any previous core.exe to avoid AddrInUse on :8080
+Get-Process -Name 'core' -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host "[..] Stopping previous core.exe (PID $($_.Id))" -ForegroundColor Yellow
+    $_ | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+# Also kill by PID from netstat (catches jobs that Get-Process misses)
+$netstatLines = netstat -ano 2>$null | Select-String ':8080\s'
+foreach ($line in $netstatLines) {
+    if ($line -match '\s(\d+)$') {
+        $pid8080 = [int]$Matches[1]
+        if ($pid8080 -gt 0) {
+            Write-Host "[..] Stopping PID $pid8080 on :8080" -ForegroundColor Yellow
+            Stop-Process -Id $pid8080 -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+Start-Sleep -Seconds 1
+
 Write-Host '==> Starting KATARA backend...' -ForegroundColor Cyan
+$cargoPath = "$env:USERPROFILE\.cargo\bin"
 $backendJob = Start-Job -ScriptBlock {
-    param($dir)
+    param($dir, $cargo)
     Set-Location $dir
+    # Ensure cargo is in PATH inside the job
+    $env:PATH = "$cargo;$env:PATH"
     # Forward .env into job
     if (Test-Path '.env') {
         Get-Content '.env' | ForEach-Object {
@@ -101,8 +122,8 @@ $backendJob = Start-Job -ScriptBlock {
             }
         }
     }
-    cargo run -p core 2>&1
-} -ArgumentList $rootDir
+    & "$cargo\cargo.exe" run -p core 2>&1
+} -ArgumentList $rootDir, $cargoPath
 $jobs += $backendJob
 
 # Wait for backend to be ready (max 60s)
