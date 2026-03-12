@@ -9,10 +9,16 @@ routing:
   strategy: hybrid
   default_provider: ollama-llama3
   fallback_provider: ollama-llama3
-  sensitive_override: ollama-llama3
+  sensitive_override: ollama-llama3       # sensitive data NEVER leaves local
 
   task_routing:
+    # ── Code tasks → best local code model ──────────────
+    review: ollama-qwen2.5-coder
+    # ── Debug / analysis → local Mistral 7B ─────────────
     debug: ollama-mistral
+    # ── Summarization → fast local Llama 3 ──────────────
     summarize: ollama-llama3
-    review: ollama-codellama
+    # ── OCR → cloud Mistral OCR (best quality) ──────────
+    ocr: mistral-ocr-cloud
+    # ── General → local Llama 3 (sovereign default) ─────
     general: ollama-llama3

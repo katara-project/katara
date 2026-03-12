@@ -1,0 +1,5 @@
+# Cargo configuration for KATARA
+# target-dir can be set here if needed (e.g. for Google Drive workspaces)
+# [build]
+# target-dir = "C:/katara-target"
+

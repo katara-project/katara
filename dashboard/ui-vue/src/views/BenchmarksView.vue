@@ -3,31 +3,39 @@
     <header class="view-header">
       <div>
         <h2>Benchmarks</h2>
-        <p class="muted">Token reduction and latency measurements across different prompt categories.</p>
+        <p class="muted">Live token reduction measurements per intent category.</p>
       </div>
+      <span v-if="metrics.connected" class="live-badge">● Live</span>
+      <span v-else class="live-badge offline">○ Offline</span>
     </header>
 
-    <section class="card">
-      <h3>Token Reduction Benchmarks</h3>
+    <section class="card" v-if="benchmarks.length">
+      <h3>Token Reduction by Intent</h3>
       <div class="bench-table">
         <div class="bench-row bench-header">
-          <span>Prompt Category</span>
+          <span>Intent</span>
+          <span>Requests</span>
           <span>Raw</span>
           <span>Compiled</span>
           <span>Saved</span>
           <span>Reduction</span>
         </div>
-        <div v-for="row in benchmarks" :key="row.category" class="bench-row">
-          <span class="bench-category">{{ row.category }}</span>
+        <div v-for="row in benchmarks" :key="row.intent" class="bench-row">
+          <span class="bench-category">{{ row.intent }}</span>
+          <span>{{ row.requests.toLocaleString() }}</span>
           <span>{{ row.raw.toLocaleString() }}</span>
           <span>{{ row.compiled.toLocaleString() }}</span>
-          <span class="bench-saved">&minus;{{ (row.raw - row.compiled).toLocaleString() }}</span>
+          <span class="bench-saved">&minus;{{ row.saved.toLocaleString() }}</span>
           <span class="bench-pct">
             <span class="bench-bar" :style="{ width: row.reduction + '%' }"></span>
             {{ row.reduction }}%
           </span>
         </div>
       </div>
+    </section>
+    <section class="card" v-else>
+      <h3>Token Reduction by Intent</h3>
+      <p class="muted">No requests yet. Send a <code>POST /v1/compile</code> or <code>/v1/chat/completions</code> to see live data.</p>
     </section>
 
     <div class="bench-summary-grid">
@@ -36,77 +44,124 @@
         <div class="summary-items">
           <div class="summary-item">
             <span class="muted">Average reduction</span>
-            <strong>63.8%</strong>
+            <strong>{{ avgReduction }}%</strong>
           </div>
           <div class="summary-item">
             <span class="muted">Best case</span>
-            <strong>72.4%</strong>
+            <strong>{{ bestReduction }}%</strong>
           </div>
           <div class="summary-item">
             <span class="muted">Worst case</span>
-            <strong>49.1%</strong>
+            <strong>{{ worstReduction }}%</strong>
           </div>
           <div class="summary-item">
             <span class="muted">Total tokens saved</span>
-            <strong>18,640</strong>
+            <strong>{{ totalSaved.toLocaleString() }}</strong>
           </div>
         </div>
       </section>
       <section class="card bench-summary">
-        <h3>Latency Impact</h3>
+        <h3>Cumulative Overview</h3>
         <div class="summary-items">
           <div class="summary-item">
-            <span class="muted">Avg compile time</span>
-            <strong>&lt; 2ms</strong>
+            <span class="muted">Total requests</span>
+            <strong>{{ metrics.totalRequests.toLocaleString() }}</strong>
           </div>
           <div class="summary-item">
-            <span class="muted">Cache lookup</span>
-            <strong>&lt; 0.5ms</strong>
+            <span class="muted">Cache hit ratio</span>
+            <strong>{{ metrics.cacheHitRatio }}%</strong>
           </div>
           <div class="summary-item">
-            <span class="muted">Net latency saved</span>
-            <strong>&minus;340ms/req</strong>
+            <span class="muted">Efficiency score</span>
+            <strong>{{ metrics.efficiencyScore }}%</strong>
           </div>
           <div class="summary-item">
-            <span class="muted">Overhead ratio</span>
-            <strong>0.4%</strong>
+            <span class="muted">Intent categories</span>
+            <strong>{{ benchmarks.length }}</strong>
           </div>
         </div>
       </section>
     </div>
 
     <section class="card chart-section">
-      <h3>Reduction Over Time</h3>
+      <h3>Token Trends (live)</h3>
       <TvChart :series="chartSeries" :labels="chartLabels" :height="220" />
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useMetricsStore } from '../store/metrics'
 import TvChart from '../components/TvChart.vue'
 
-const benchmarks = [
-  { category: 'Code review', raw: 2100, compiled: 760, reduction: 63.8 },
-  { category: 'Debug trace', raw: 3400, compiled: 1180, reduction: 65.3 },
-  { category: 'Summarization', raw: 4200, compiled: 1160, reduction: 72.4 },
-  { category: 'Chat (general)', raw: 1800, compiled: 920, reduction: 49.1 },
-  { category: 'System prompt', raw: 1100, compiled: 380, reduction: 65.5 },
-  { category: 'Multi-turn', raw: 5600, compiled: 1720, reduction: 69.3 },
-]
+const metrics = useMetricsStore()
 
-const chartLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6']
-const chartSeries = [
-  { name: 'Raw tokens', data: [22000, 24800, 27400, 28600, 26800, 29200], color: '#ffa940' },
-  { name: 'Compiled', data: [9200, 9600, 8700, 8400, 7900, 8120], color: 'var(--primary)' },
-  { name: 'Saved', data: [12800, 15200, 18700, 20200, 18900, 21080], color: 'var(--accent)' },
-]
+const INTENT_LABELS: Record<string, string> = {
+  debug: 'Debug / Trace',
+  summarize: 'Summarization',
+  review: 'Code Review',
+  general: 'General',
+  ocr: 'OCR',
+}
+
+const benchmarks = computed(() => {
+  const stats = metrics.intentStats
+  return Object.entries(stats)
+    .map(([intent, s]) => {
+      const saved = s.raw_tokens - s.compiled_tokens
+      const reduction = s.raw_tokens > 0
+        ? Math.round((saved / s.raw_tokens) * 1000) / 10
+        : 0
+      return {
+        intent: INTENT_LABELS[intent] ?? intent,
+        requests: s.requests,
+        raw: s.raw_tokens,
+        compiled: s.compiled_tokens,
+        saved,
+        reduction,
+      }
+    })
+    .sort((a, b) => b.requests - a.requests)
+})
+
+const avgReduction = computed(() => {
+  if (!benchmarks.value.length) return 0
+  const sum = benchmarks.value.reduce((acc, r) => acc + r.reduction, 0)
+  return Math.round(sum / benchmarks.value.length * 10) / 10
+})
+const bestReduction = computed(() =>
+  benchmarks.value.length ? Math.max(...benchmarks.value.map(r => r.reduction)) : 0
+)
+const worstReduction = computed(() =>
+  benchmarks.value.length ? Math.min(...benchmarks.value.map(r => r.reduction)) : 0
+)
+const totalSaved = computed(() =>
+  benchmarks.value.reduce((acc, r) => acc + r.saved, 0)
+)
+
+const chartLabels = computed(() =>
+  metrics.historyRaw.length
+    ? metrics.historyRaw.map((_: number, i: number) => `#${i + 1}`)
+    : ['—']
+)
+const chartSeries = computed(() => {
+  const raw = metrics.historyRaw.length ? [...metrics.historyRaw] : [0]
+  const compiled = metrics.historyCompiled.length ? [...metrics.historyCompiled] : [0]
+  const saved = raw.map((r: number, i: number) => r - (compiled[i] ?? 0))
+  return [
+    { name: 'Raw tokens', data: raw, color: '#ffa940' },
+    { name: 'Compiled', data: compiled, color: 'var(--primary)' },
+    { name: 'Saved', data: saved, color: 'var(--accent)' },
+  ]
+})
 </script>
 
 <style scoped>
 .bench-table { display: flex; flex-direction: column; margin-top: 12px; }
 .bench-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 2fr;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 2fr;
   gap: 12px;
   padding: 12px 16px;
   align-items: center;
@@ -144,9 +199,15 @@ const chartSeries = [
 .summary-item strong { font-size: 1.3rem; color: var(--primary); }
 .chart-section { margin-top: 20px; }
 .chart-section h3 { margin: 0 0 16px; font-size: 1rem; }
+.live-badge {
+  font-size: 0.82rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+.live-badge.offline { color: var(--muted); }
 @media (max-width: 1100px) {
   .bench-summary-grid { grid-template-columns: 1fr; }
-  .bench-row { grid-template-columns: 1.5fr repeat(4, 1fr); font-size: 0.82rem; }
+  .bench-row { grid-template-columns: 1.5fr repeat(5, 1fr); font-size: 0.82rem; }
 }
 @media (max-width: 600px) {
   .bench-row { grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.78rem; padding: 10px 12px; }

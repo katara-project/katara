@@ -17,6 +17,13 @@ use tower_http::cors::{Any, CorsLayer};
 
 /// ── Shared application state ──────────────────────────
 #[derive(Debug, Clone, Serialize)]
+struct IntentStats {
+    requests: u64,
+    raw_tokens: usize,
+    compiled_tokens: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
 struct MetricsSnapshot {
     ts: u64,
     total_requests: u64,
@@ -33,6 +40,7 @@ struct MetricsSnapshot {
     routes_local: u64,
     routes_cloud: u64,
     routes_midtier: u64,
+    intent_stats: std::collections::HashMap<String, IntentStats>,
 }
 
 #[derive(Debug)]
@@ -60,6 +68,7 @@ impl MetricsCollector {
                 routes_local: 0,
                 routes_cloud: 0,
                 routes_midtier: 0,
+                intent_stats: std::collections::HashMap::new(),
             },
             sem_cache: cache::SemanticCache::new(),
         }
@@ -72,6 +81,7 @@ impl MetricsCollector {
         reused: usize,
         provider: &str,
         cache_hit: bool,
+        intent: &str,
     ) {
         let s = &mut self.snapshot;
         s.total_requests += 1;
@@ -106,6 +116,15 @@ impl MetricsCollector {
             s.history_compiled.remove(0);
             s.history_reused.remove(0);
         }
+
+        let entry = s.intent_stats.entry(intent.to_string()).or_insert(IntentStats {
+            requests: 0,
+            raw_tokens: 0,
+            compiled_tokens: 0,
+        });
+        entry.requests += 1;
+        entry.raw_tokens += raw;
+        entry.compiled_tokens += compiled;
 
         s.ts = now_epoch();
     }
@@ -201,6 +220,7 @@ async fn compile(
         mem.reused_tokens,
         &route.provider,
         cache_hit,
+        &result.intent,
     );
     drop(collector);
 
@@ -267,6 +287,7 @@ async fn chat_completions(
             mem.reused_tokens,
             &route.provider,
             cache_hit,
+            &result.intent,
         );
     } // MutexGuard dropped here, before .await
 

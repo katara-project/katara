@@ -26,6 +26,7 @@ struct TaskRouting {
     summarize: Option<String>,
     review: Option<String>,
     general: Option<String>,
+    ocr: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -86,6 +87,7 @@ impl RouterConfig {
             if let Some(v) = &tr.summarize { task_map.insert("summarize".into(), v.clone()); }
             if let Some(v) = &tr.review { task_map.insert("review".into(), v.clone()); }
             if let Some(v) = &tr.general { task_map.insert("general".into(), v.clone()); }
+            if let Some(v) = &tr.ocr { task_map.insert("ocr".into(), v.clone()); }
         }
 
         Ok(Self {

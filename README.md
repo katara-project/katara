@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/katara-project/katara/actions/workflows/ci.yml/badge.svg?branch=wip-chf)](https://github.com/katara-project/katara/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commons%20Clause-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-7.0.0-brightgreen.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-7.0.1-brightgreen.svg)](VERSION)
 
 ## What makes KATARA different
 
@@ -91,6 +91,7 @@ Every `POST /v1/compile` runs the full pipeline (fingerprint → cache → compi
 | `deployments/` | Docker, Kubernetes, and Helm manifests |
 | `docs/` | Architecture and implementation notes |
 | `examples/` | Quick integration examples |
+| `mcp/` | MCP server for VS Code Copilot integration |
 | `benchmarks/` | Reproducible token-reduction fixtures |
 
 ## Quick start
@@ -117,15 +118,52 @@ cargo build
 cd dashboard/ui-vue && npm install && npm run dev
 ```
 
+### Secrets management
+
+API keys are stored in a `.env` file at the project root.
+This file is **excluded from Git** (listed in `.gitignore`).
+
+```bash
+cp .env.example .env
+# Edit .env with your real keys
+```
+
+See `.env.example` for the expected variables.
+
+### Google Drive users
+
+If your workspace lives on Google Drive, the Rust `target/` folder will cause file-locking errors.
+The included `.cargo/config.toml` redirects build artifacts to a local path (`C:/katara-target`).
+No manual action needed — `cargo build` and `cargo run` will use it automatically.
+
+## VS Code Agent Integration
+
+KATARA ships with a built-in MCP (Model Context Protocol) server.
+Once configured, type `@katara` in VS Code Copilot Chat to invoke KATARA tools directly.
+
+```text
+Copilot Chat  →  @katara  →  MCP stdio  →  katara-server.mjs  →  localhost:8080
+```
+
+| Tool | Description |
+| --- | --- |
+| `katara_compile` | Compile raw context through the full pipeline |
+| `katara_chat` | Compile + forward to routed LLM |
+| `katara_providers` | List configured providers |
+| `katara_metrics` | Fetch live metrics snapshot |
+
+See [INSTALL.md](INSTALL.md#vs-code-agent-mcp) for setup instructions.
+
 ## Version
 
-Current scaffold version: **7.0.0**
+Current scaffold version: **7.0.1**
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for planned iterations.
 
 ## Status
 
 This is a **V7 advanced scaffold**: coherent, GitHub-ready, and implementation-oriented.
+Live benchmarks, MCP agent integration, and per-intent metrics are operational.
 It is not yet a fully production-complete gateway across every provider.
 
 ## License
