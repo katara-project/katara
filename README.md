@@ -99,23 +99,34 @@ Every `POST /v1/compile` runs the full pipeline (fingerprint → cache → compi
 ### Windows
 
 ```powershell
+# 1. First-time setup (installs Rust, Node.js, builds crates, installs npm deps)
 .\scripts\bootstrap-win.ps1
+
+# 2. Start all services (Ollama + backend + dashboard)
+.\scripts\start-win.ps1
 ```
 
 ### Linux / macOS
 
 ```bash
+# First-time setup
 ./scripts/bootstrap.sh
+
+# Start backend manually
+cargo run -p core
 ```
 
 ### Manual
 
 ```bash
 # Rust backend
-cargo build
+cargo run -p core
 
-# Vue dashboard
+# Vue dashboard (separate terminal)
 cd dashboard/ui-vue && npm install && npm run dev
+
+# MCP server (managed automatically by VS Code via mcp.json)
+# If testing manually: cd mcp && node katara-server.mjs
 ```
 
 ### Secrets management
@@ -152,7 +163,10 @@ Copilot Chat  →  @katara  →  MCP stdio  →  katara-server.mjs  →  localho
 | `katara_providers` | List configured providers |
 | `katara_metrics` | Fetch live metrics snapshot |
 
-See [INSTALL.md](INSTALL.md#vs-code-agent-mcp) for setup instructions.
+The MCP server uses `@modelcontextprotocol/sdk` v1.27.1 with stdio transport.
+Dependencies are installed in `mcp/node_modules/` — run `npm install` inside `mcp/` if pulling fresh.
+
+See [INSTALL.md](INSTALL.md#vs-code-agent-mcp) for setup instructions and [TESTING.md](TESTING.md#mcp-agent-tests-vs-code) for validation steps.
 
 ## Version
 
@@ -160,10 +174,16 @@ Current scaffold version: **7.0.1**
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for planned iterations.
 
+## Testing
+
+See [TESTING.md](TESTING.md) for the complete verification guide:
+curl smoke tests, intent routing matrix, MCP agent tests, and a PowerShell quick-test script.
+
 ## Status
 
-This is a **V7 advanced scaffold**: coherent, GitHub-ready, and implementation-oriented.
+This is a **V7.0.1 runtime**: coherent, GitHub-ready, and implementation-oriented.
 Live benchmarks, MCP agent integration, and per-intent metrics are operational.
+Provider adapters (`/v1/chat/completions`) forward to real Ollama and Mistral cloud endpoints.
 It is not yet a fully production-complete gateway across every provider.
 
 ## License

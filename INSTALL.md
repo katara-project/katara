@@ -237,9 +237,9 @@ ollama serve
 Pull the models you declared in providers.yaml:
 
 ```bash
-ollama pull llama3.1
-ollama pull codellama
-ollama pull mistral
+ollama pull llama3:latest          # general, summarize, default
+ollama pull qwen2.5-coder:7b       # code review
+ollama pull mistral:7b-instruct    # debug, analysis
 ```
 
 Verify Ollama is running:
@@ -299,18 +299,22 @@ Open http://localhost:5173 — the green **Live** dot confirms SSE connection.
 
 ## Test Your Setup
 
+For the full test suite (intent routing, cache, MCP agent, dashboard), see **[TESTING.md](TESTING.md)**.
+
+Quick smoke tests below:
+
 ### Health check
 
 ```bash
 curl http://localhost:8080/healthz
-# {"status":"ok","service":"katara-core","version":"7.0.0"}
+# {"status":"ok","service":"katara-core","version":"7.0.1"}
 ```
 
 ### List providers
 
 ```bash
 curl http://localhost:8080/v1/providers
-# {"providers":["ollama-llama3","ollama-codellama","ollama-mistral"]}
+# {"providers":["ollama-llama3","ollama-qwen2.5-coder","ollama-mistral","ollama-ocr-deepseek","mistral-ocr-cloud"]}
 ```
 
 ### Compile only (no LLM call)
@@ -321,7 +325,9 @@ curl -X POST http://localhost:8080/v1/compile \
   -d '{"context": "Debug this auth function with retry logic", "sensitive": false}'
 ```
 
-Response includes `provider`, `model`, `intent`, `compiled_tokens`, `cache_hit`, etc.
+Response includes `provider`, `model`, `intent`, `compiled_tokens`, `cache_hit`, `routing_reason`.
+
+**Expected:** `intent="debug"`, `provider="ollama-mistral"`
 
 ### Full LLM call (compile + forward)
 
@@ -335,7 +341,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 
 This will:
 1. Detect intent → `general`
-2. Route to `ollama-llama3` (Llama 3.1)
+2. Route to `ollama-llama3` (`llama3:latest`)
 3. Forward to Ollama on localhost:11434
 4. Return OpenAI-compatible response with a `katara` section showing optimization stats
 
@@ -379,11 +385,10 @@ curl -fsSL https://ollama.com/install.sh | sh    # Linux
 # Start Ollama
 ollama serve
 
-# Pull models
-ollama pull llama3.1       # 8B general
-ollama pull codellama      # code tasks
-ollama pull mistral        # debug/analysis
-ollama pull phi3           # lightweight alternative
+# Pull models (matching providers.yaml)
+ollama pull llama3:latest          # general, summarize, default
+ollama pull qwen2.5-coder:7b       # code review
+ollama pull mistral:7b-instruct    # debug, analysis
 
 # Verify
 ollama list
@@ -391,14 +396,13 @@ ollama list
 
 ### Map models to KATARA providers
 
-Each model you pull in Ollama should have a corresponding entry in `configs/providers/providers.yaml`:
+Each model you pull in Ollama must have a corresponding entry in `configs/providers/providers.yaml`:
 
-| Ollama model | providers.yaml key | Suggested routing           |
-|--------------|--------------------|-----------------------------|
-| `llama3.1`   | `ollama-llama3`    | default, general, summarize |
-| `codellama`  | `ollama-codellama` | review (code)               |
-| `mistral`    | `ollama-mistral`   | debug                       |
-| `phi3`       | `ollama-phi3`      | lightweight fallback        |
+| Ollama model | providers.yaml key | Suggested routing |
+|---|---|---|
+| `llama3:latest` | `ollama-llama3` | default, general, summarize |
+| `qwen2.5-coder:7b` | `ollama-qwen2.5-coder` | review (code) |
+| `mistral:7b-instruct` | `ollama-mistral` | debug, analysis |
 
 ---
 
@@ -552,6 +556,7 @@ kubectl create configmap katara-config \
 ## VS Code Agent (MCP)
 
 KATARA includes an MCP (Model Context Protocol) server that integrates with VS Code Copilot Chat.
+It uses `@modelcontextprotocol/sdk` v1.27.1 with `StdioServerTransport` (JSON-RPC 2.0 over stdio).
 
 ### Requires
 
@@ -561,9 +566,31 @@ KATARA includes an MCP (Model Context Protocol) server that integrates with VS C
 
 ### Setup
 
-1. The MCP server is already registered in `.vscode/mcp.json`. VS Code will detect it automatically.
-2. Start the KATARA backend: `cargo run -p core`
-3. In Copilot Chat, type `@katara` followed by your request.
+1. **Install MCP dependencies** (first-time only):
+
+```powershell
+Set-Location mcp
+npm install
+Set-Location ..
+```
+
+2. The MCP server is already registered in `.vscode/mcp.json` with the correct `cwd`. VS Code detects it automatically on startup.
+
+3. Start the KATARA backend: `cargo run -p core`
+
+4. In Copilot Chat, type `@katara` followed by your request.
+
+### How it works
+
+```text
+VS Code Copilot Chat
+  │
+  └─ spawns: node katara-server.mjs (cwd: mcp/)
+              │
+              └─ stdio JSON-RPC 2.0 (Content-Length framing)
+                   │
+                   └─ HTTP → http://127.0.0.1:8080
+```
 
 ### Available tools
 
@@ -574,11 +601,16 @@ KATARA includes an MCP (Model Context Protocol) server that integrates with VS C
 | `katara_providers` | List configured providers | `@katara list providers` |
 | `katara_metrics` | Fetch live metrics snapshot | `@katara show metrics` |
 
+### Validate the MCP integration
+
+See [TESTING.md — MCP Agent Tests](TESTING.md#mcp-agent-tests-vs-code) for step-by-step validation.
+
 ### Manual test (without VS Code)
 
-```bash
-node mcp/katara-server.mjs
-# Communicates via stdio with Content-Length framing (JSON-RPC 2.0)
+```powershell
+Set-Location mcp
+node katara-server.mjs
+# Send JSON-RPC 2.0 initialize + tools/list messages via stdin
 ```
 
 ---
