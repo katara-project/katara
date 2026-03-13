@@ -304,7 +304,7 @@ const trendWindow = ref<(typeof trendWindowOptions)[number]>('24h')
 const trendWindowLabel = computed(() => trendWindow.value)
 
 const trendLastUpdate = computed(() => {
-  if (!metrics.lastTs) return 'waiting for metrics...'
+  if (!metrics.lastTs) return 'pending metrics...'
   return new Date(metrics.lastTs * 1000).toLocaleString()
 })
 
@@ -417,7 +417,7 @@ const leadModel = computed(() => {
   return {
     key: 'none',
     model: 'No traffic yet',
-    provider: 'Waiting for first routed request',
+    provider: 'Pending first routed request',
     requests: 0,
     savedTokens: 0,
     efficiency: 0,
@@ -470,7 +470,7 @@ const lastRequestCard = computed(() => {
   if (!lastRequest) {
     return {
       clientApp: 'No request yet',
-      upstreamProvider: 'Waiting for upstream metadata',
+      upstreamProvider: 'Pending upstream metadata',
       upstreamModel: configuredAssistantModelLabel,
       routedProvider: 'No routed provider yet',
       routedModel: 'No routed model yet',
@@ -481,7 +481,7 @@ const lastRequestCard = computed(() => {
       sensitiveClass: 'neutral',
       sensitiveLabel: 'No sensitivity data',
       intent: 'n/a',
-      seenAt: 'Awaiting first request',
+      seenAt: 'Pending first request',
     }
   }
 

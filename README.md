@@ -74,6 +74,8 @@ Clients / IDE / Agents
 
 Every `POST /v1/compile` runs the full pipeline (fingerprint → cache → compiler → memory → router → metrics) and feeds a shared `MetricsCollector`. The Vue dashboard auto-connects via SSE and updates in real time — no polling, no WebSocket.
 
+Runtime operational data is persisted automatically to `cache/runtime-state.json` and restored on backend startup. This keeps metrics/audit/cache history transparent across backend restarts.
+
 ## Monorepo layout
 
 | Directory | Purpose |

@@ -36,6 +36,17 @@ impl SemanticCache {
     pub fn is_empty(&self) -> bool {
         self.store.is_empty()
     }
+
+    pub fn entries(&self) -> Vec<CacheEntry> {
+        self.store.values().cloned().collect()
+    }
+
+    pub fn load_entries(&mut self, entries: Vec<CacheEntry>) {
+        self.store.clear();
+        for entry in entries {
+            self.store.insert(entry.fingerprint, entry);
+        }
+    }
 }
 
 #[cfg(test)]

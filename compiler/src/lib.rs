@@ -9,6 +9,80 @@ pub struct CompileResult {
     pub compiled_context: String,
 }
 
+/// Canonicalize raw context before fingerprinting to reduce cache misses caused
+/// by volatile values (IDs, timestamps, noisy whitespace) while keeping intent.
+pub fn canonicalize_context(raw: &str) -> String {
+    if raw.trim().is_empty() {
+        return String::new();
+    }
+
+    let mut normalized = Vec::new();
+    let mut previous_blank = false;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            if !previous_blank {
+                normalized.push(String::new());
+            }
+            previous_blank = true;
+            continue;
+        }
+
+        previous_blank = false;
+        let collapsed_ws = trimmed.split_whitespace().collect::<Vec<_>>().join(" ");
+        normalized.push(normalize_volatile_tokens(&collapsed_ws));
+    }
+
+    while matches!(normalized.last(), Some(line) if line.is_empty()) {
+        normalized.pop();
+    }
+
+    normalized.join("\n")
+}
+
+fn normalize_volatile_tokens(input: &str) -> String {
+    input
+        .split_whitespace()
+        .map(normalize_single_token)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn normalize_single_token(token: &str) -> String {
+    if let Some((left, right)) = token.split_once('=') {
+        return format!("{left}={}", normalize_single_token(right));
+    }
+
+    if is_uuid_like(token) {
+        "<uuid>".to_string()
+    } else if is_long_number(token) {
+        "<num>".to_string()
+    } else {
+        token.to_string()
+    }
+}
+
+fn is_uuid_like(token: &str) -> bool {
+    let t = token
+        .trim_matches(|c: char| !c.is_ascii_hexdigit() && c != '-')
+        .to_ascii_lowercase();
+    let parts: Vec<&str> = t.split('-').collect();
+    if parts.len() != 5 {
+        return false;
+    }
+    let expected = [8, 4, 4, 4, 12];
+    parts
+        .iter()
+        .zip(expected)
+        .all(|(p, len)| p.len() == len && p.chars().all(|c| c.is_ascii_hexdigit()))
+}
+
+fn is_long_number(token: &str) -> bool {
+    let t = token.trim_matches(|c: char| !c.is_ascii_digit());
+    t.len() >= 6 && t.chars().all(|c| c.is_ascii_digit())
+}
+
 pub fn compile_context(raw: &str) -> CompileResult {
     let raw_tokens_estimate = token_count(raw);
     let target_tokens = raw_tokens_estimate
@@ -43,10 +117,36 @@ fn build_compiled_context(raw: &str, intent: &str, target_tokens: usize) -> Stri
     };
 
     let truncated = truncate_to_token_budget(&reduced, target_tokens);
-    if truncated.trim().is_empty() {
+    let compact = if truncated.trim().is_empty() {
         truncate_to_token_budget(raw, target_tokens)
     } else {
         truncated
+    };
+
+    shape_by_intent(intent, &compact)
+}
+
+fn shape_by_intent(intent: &str, content: &str) -> String {
+    if content.trim().is_empty() {
+        return String::new();
+    }
+
+    let marker = match intent {
+        "debug" => "[k:debug]|",
+        "review" => "[k:review]|",
+        "summarize" => "[k:summarize]|",
+        "codegen" => "[k:codegen]|",
+        "ocr" => "[k:ocr]|",
+        _ => "[k:general]|",
+    };
+
+    // Token-neutral shaping: inject intent metadata into the first token so we
+    // keep stable structure without increasing token count or losing signal.
+    let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
+    if let Some((first, rest)) = normalized.split_once(' ') {
+        format!("{marker}{first} {rest}")
+    } else {
+        format!("{marker}{normalized}")
     }
 }
 
@@ -443,8 +543,27 @@ mod tests {
         let result = compile_context(input);
 
         assert_eq!(result.intent, "review");
+        assert!(result.compiled_context.contains("[k:review]|"));
         assert!(result.compiled_context.contains("diff --git"));
         assert!(result.compiled_context.contains("+ new"));
         assert!(!result.compiled_context.contains(" context"));
+    }
+
+    #[test]
+    fn compiler_applies_transparent_intent_shaping() {
+        let result = compile_context("Debug this panic at src/main.rs:42");
+        assert_eq!(result.intent, "debug");
+        assert!(result.compiled_context.contains("[k:debug]|"));
+        assert!(result.compiled_context.contains("panic"));
+    }
+
+    #[test]
+    fn canonicalize_context_normalizes_volatile_values() {
+        let raw =
+            "request_id=123456789\ntrace=550e8400-e29b-41d4-a716-446655440000\n\n  same    line";
+        let canonical = canonicalize_context(raw);
+        assert!(canonical.contains("request_id=<num>"));
+        assert!(canonical.contains("trace=<uuid>"));
+        assert!(canonical.contains("same line"));
     }
 }

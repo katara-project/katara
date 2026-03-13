@@ -13,7 +13,7 @@ use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
@@ -22,14 +22,14 @@ use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 use tower_http::cors::{Any, CorsLayer};
 
 /// ── Shared application state ──────────────────────────
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct IntentStats {
     requests: u64,
     raw_tokens: usize,
     compiled_tokens: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct ModelStats {
     model: String,
     provider: String,
@@ -43,7 +43,7 @@ struct ModelStats {
     sovereign_ratio: f32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct UpstreamStats {
     client_app: String,
     upstream_provider: String,
@@ -52,7 +52,7 @@ struct UpstreamStats {
     last_seen_ts: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct RequestLineage {
     client_app: Option<String>,
     upstream_provider: Option<String>,
@@ -63,6 +63,8 @@ struct RequestLineage {
     routed_provider: String,
     routed_model: String,
     intent: String,
+    semantic_cache_hit: bool,
+    semantic_fingerprint: Option<String>,
     cache_hit: bool,
     sensitive: bool,
     ts: u64,
@@ -90,7 +92,7 @@ struct WorkspaceContextFile {
     workspace: WorkspaceContext,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct MetricsSnapshot {
     ts: u64,
     total_requests: u64,
@@ -128,9 +130,10 @@ struct MetricsCollector {
     audit_retention_secs: u64,
     audit_history_limit: usize,
     hour_buckets: HashMap<u64, (usize, usize, usize)>,
+    persistence_path: PathBuf,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedChatResponse {
     content: String,
     model: String,
@@ -152,6 +155,8 @@ struct RecordEntry {
     provider: String,
     model: String,
     cache_hit: bool,
+    semantic_cache_hit: bool,
+    semantic_fingerprint: Option<String>,
     cache_saved_tokens: usize,
     intent: String,
     sensitive: bool,
@@ -166,9 +171,19 @@ struct WorkspaceScope {
     policy_pack: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PersistedCollectorState {
+    snapshot: MetricsSnapshot,
+    sem_cache_entries: Vec<cache::CacheEntry>,
+    chat_cache: HashMap<String, CachedChatResponse>,
+    context_blocks: Vec<memory::ContextBlock>,
+    hour_buckets: HashMap<u64, (usize, usize, usize)>,
+}
+
 impl MetricsCollector {
     fn new() -> Self {
-        Self {
+        let persistence_path = runtime_state_path();
+        let mut collector = Self {
             snapshot: MetricsSnapshot {
                 ts: now_epoch(),
                 total_requests: 0,
@@ -203,7 +218,14 @@ impl MetricsCollector {
                 .saturating_mul(24 * 60 * 60),
             audit_history_limit: read_usize_env("KATARA_AUDIT_HISTORY_LIMIT", 2000),
             hour_buckets: HashMap::new(),
+            persistence_path,
+        };
+
+        if let Err(error) = collector.restore_from_disk() {
+            eprintln!("Warning: runtime state restore failed: {error}");
         }
+
+        collector
     }
 
     fn record(&mut self, e: RecordEntry) {
@@ -214,6 +236,8 @@ impl MetricsCollector {
             provider,
             model,
             cache_hit,
+            semantic_cache_hit,
+            semantic_fingerprint,
             cache_saved_tokens,
             intent,
             sensitive,
@@ -392,6 +416,8 @@ impl MetricsCollector {
             routed_provider: provider,
             routed_model: model,
             intent,
+            semantic_cache_hit,
+            semantic_fingerprint,
             cache_hit,
             sensitive,
             ts,
@@ -411,10 +437,64 @@ impl MetricsCollector {
         );
 
         s.ts = ts;
+
+        if let Err(error) = self.persist_to_disk() {
+            eprintln!("Warning: runtime state persistence failed: {error}");
+        }
     }
 
     fn snapshot(&self) -> &MetricsSnapshot {
         &self.snapshot
+    }
+
+    fn persisted_state(&self) -> PersistedCollectorState {
+        PersistedCollectorState {
+            snapshot: self.snapshot.clone(),
+            sem_cache_entries: self.sem_cache.entries(),
+            chat_cache: self.chat_cache.clone(),
+            context_blocks: self.context_store.blocks(),
+            hour_buckets: self.hour_buckets.clone(),
+        }
+    }
+
+    fn persist_to_disk(&self) -> Result<(), String> {
+        let body = serde_json::to_string_pretty(&self.persisted_state())
+            .map_err(|error| format!("Cannot serialize runtime state: {error}"))?;
+        write_atomic_text(&self.persistence_path, &body)
+    }
+
+    fn restore_from_disk(&mut self) -> Result<(), String> {
+        if !self.persistence_path.exists() {
+            return Ok(());
+        }
+
+        let raw = std::fs::read_to_string(&self.persistence_path)
+            .map_err(|error| format!("Cannot read {}: {error}", self.persistence_path.display()))?;
+        let mut restored: PersistedCollectorState = serde_json::from_str(&raw)
+            .map_err(|error| format!("Cannot parse {}: {error}", self.persistence_path.display()))?;
+
+        // Apply retention guardrails on restored audit lineage.
+        let now = now_epoch();
+        let min_ts = now.saturating_sub(self.audit_retention_secs);
+        prune_request_history(
+            &mut restored.snapshot.request_history,
+            if self.audit_retention_secs == 0 {
+                None
+            } else {
+                Some(min_ts)
+            },
+            self.audit_history_limit,
+        );
+
+        restored.snapshot.last_request = restored.snapshot.request_history.last().cloned();
+
+        self.snapshot = restored.snapshot;
+        self.sem_cache.load_entries(restored.sem_cache_entries);
+        self.chat_cache = restored.chat_cache;
+        self.context_store.load_blocks(restored.context_blocks);
+        self.hour_buckets = restored.hour_buckets;
+
+        Ok(())
     }
 }
 
@@ -455,7 +535,8 @@ fn compile_with_semantic_cache(
     collector: &mut MetricsCollector,
     raw: &str,
 ) -> (u64, compiler::CompileResult, bool) {
-    let fingerprint = fingerprint::fingerprint(raw);
+    let canonical = compiler::canonicalize_context(raw);
+    let fingerprint = fingerprint::fingerprint(&canonical);
     if let Some(entry) = collector.sem_cache.get(fingerprint) {
         return (fingerprint, compile_result_from_cache(entry), true);
     }
@@ -525,6 +606,54 @@ fn runtime_client_context_path() -> PathBuf {
         .into_iter()
         .next()
         .unwrap_or_else(|| PathBuf::from("cache/client-context.json"))
+}
+
+fn runtime_state_path() -> PathBuf {
+    if let Ok(custom) = std::env::var("KATARA_RUNTIME_STATE_PATH") {
+        let trimmed = custom.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
+
+    let candidates = [
+        PathBuf::from("cache/runtime-state.json"),
+        PathBuf::from("../cache/runtime-state.json"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cache/runtime-state.json"),
+    ];
+
+    candidates
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| PathBuf::from("cache/runtime-state.json"))
+}
+
+fn write_atomic_text(path: &Path, content: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("Cannot create {}: {error}", parent.display()))?;
+    }
+
+    let mut temp = path.to_path_buf();
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| format!("{ext}.tmp"))
+        .unwrap_or_else(|| "tmp".to_string());
+    temp.set_extension(extension);
+
+    std::fs::write(&temp, content)
+        .map_err(|error| format!("Cannot write temp state {}: {error}", temp.display()))?;
+
+    if path.exists() {
+        std::fs::remove_file(path)
+            .map_err(|error| format!("Cannot replace state file {}: {error}", path.display()))?;
+    }
+
+    std::fs::rename(&temp, path)
+        .map_err(|error| format!("Cannot move temp state {}: {error}", path.display()))?;
+
+    Ok(())
 }
 
 fn workspace_context_path() -> Option<PathBuf> {
@@ -789,8 +918,24 @@ fn compress_conversation_history(messages: &[Value]) -> Vec<Value> {
 }
 
 fn build_chat_cache_key(messages: &[Value], extra_body: &Map<String, Value>) -> String {
+    let canonical_messages: Vec<Value> = messages
+        .iter()
+        .map(|message| {
+            let mut cloned = message.clone();
+            if let Some(obj) = cloned.as_object_mut() {
+                if let Some(content) = obj.get("content").and_then(Value::as_str) {
+                    obj.insert(
+                        "content".into(),
+                        Value::String(compiler::canonicalize_context(content)),
+                    );
+                }
+            }
+            cloned
+        })
+        .collect();
+
     let serialized = serde_json::to_string(&json!({
-        "messages": messages,
+        "messages": canonical_messages,
         "options": extra_body,
     }))
     .unwrap_or_default();
@@ -928,9 +1073,17 @@ async fn compile(
 
     let mut collector = state.collector.lock().unwrap();
     let (fp, result, cache_hit) = compile_with_semantic_cache(&mut collector, raw);
-    let mem = collector
-        .context_store
-        .compute_reuse(fp, result.raw_tokens_estimate);
+    let mem = if cache_hit {
+        collector
+            .context_store
+            .compute_reuse(fp, result.raw_tokens_estimate)
+    } else {
+        memory::MemorySummary {
+            reused_tokens: 0,
+            delta_tokens: result.raw_tokens_estimate,
+            context_reuse_ratio: 0.0,
+        }
+    };
     let runtime_context = read_runtime_client_context();
     let scope = resolve_workspace_scope(
         payload.tenant_id.as_deref(),
@@ -969,6 +1122,8 @@ async fn compile(
         provider: route.provider.clone(),
         model: route.model.clone(),
         cache_hit,
+        semantic_cache_hit: cache_hit,
+        semantic_fingerprint: Some(fp.to_string()),
         cache_saved_tokens: 0,
         intent: result.intent.clone(),
         sensitive,
@@ -1048,11 +1203,17 @@ async fn chat_completions(
     // Compress history when conversation has grown beyond MAX_FULL_TURNS
     let forwarded_messages = compress_conversation_history(&compiled_messages);
     let fp = build_chat_cache_key(&forwarded_messages, &payload.extra_body);
-    let mem = {
+    let mem = if semantic_cache_hit {
         let collector = state.collector.lock().unwrap();
         collector
             .context_store
             .compute_reuse(semantic_fp, result.raw_tokens_estimate)
+    } else {
+        memory::MemorySummary {
+            reused_tokens: 0,
+            delta_tokens: result.raw_tokens_estimate,
+            context_reuse_ratio: 0.0,
+        }
     };
     let route = state
         .router_config
@@ -1103,6 +1264,8 @@ async fn chat_completions(
                 provider: route.provider.clone(),
                 model: model.clone(),
                 cache_hit: true,
+                semantic_cache_hit,
+                semantic_fingerprint: Some(semantic_fp.to_string()),
                 cache_saved_tokens: saved_tokens,
                 intent: result.intent.clone(),
                 sensitive,
@@ -1181,6 +1344,8 @@ async fn chat_completions(
                         provider: route.provider.clone(),
                         model: model.clone(),
                         cache_hit: false,
+                        semantic_cache_hit,
+                        semantic_fingerprint: Some(semantic_fp.to_string()),
                         cache_saved_tokens: 0,
                         intent: result.intent.clone(),
                         sensitive,
@@ -1247,6 +1412,9 @@ async fn chat_completions(
                                     completion_tokens,
                                 },
                             );
+                            if let Err(error) = collector.persist_to_disk() {
+                                eprintln!("Warning: runtime state persistence failed: {error}");
+                            }
                         }
                     }
                 });
@@ -1312,6 +1480,8 @@ async fn chat_completions(
                     provider: route.provider.clone(),
                     model: model.clone(),
                     cache_hit: false,
+                    semantic_cache_hit,
+                    semantic_fingerprint: Some(semantic_fp.to_string()),
                     cache_saved_tokens: 0,
                     intent: result.intent.clone(),
                     sensitive,
@@ -1490,6 +1660,24 @@ mod tests {
     }
 
     #[test]
+    fn chat_cache_key_ignores_volatile_numeric_and_uuid_noise() {
+        let left_messages = vec![json!({
+            "role": "user",
+            "content": "error request_id=123456 trace=550e8400-e29b-41d4-a716-446655440000"
+        })];
+        let right_messages = vec![json!({
+            "role": "user",
+            "content": "error request_id=987654 trace=550e8400-e29b-41d4-a716-446655440001"
+        })];
+
+        let opts = Map::new();
+        let left = build_chat_cache_key(&left_messages, &opts);
+        let right = build_chat_cache_key(&right_messages, &opts);
+
+        assert_eq!(left, right);
+    }
+
+    #[test]
     fn compile_with_semantic_cache_reuses_compiled_result() {
         let mut collector = MetricsCollector::new();
 
@@ -1552,6 +1740,8 @@ mod tests {
                 routed_provider: "ollama-llama3".into(),
                 routed_model: "llama3:latest".into(),
                 intent: "general".into(),
+                semantic_cache_hit: false,
+                semantic_fingerprint: Some("fp-1".into()),
                 cache_hit: false,
                 sensitive: false,
                 ts: 100,
@@ -1566,6 +1756,8 @@ mod tests {
                 routed_provider: "ollama-llama3".into(),
                 routed_model: "llama3:latest".into(),
                 intent: "general".into(),
+                semantic_cache_hit: false,
+                semantic_fingerprint: Some("fp-2".into()),
                 cache_hit: false,
                 sensitive: false,
                 ts: 200,
@@ -1580,6 +1772,8 @@ mod tests {
                 routed_provider: "ollama-llama3".into(),
                 routed_model: "llama3:latest".into(),
                 intent: "general".into(),
+                semantic_cache_hit: false,
+                semantic_fingerprint: Some("fp-3".into()),
                 cache_hit: false,
                 sensitive: false,
                 ts: 300,
@@ -1590,6 +1784,42 @@ mod tests {
 
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].ts, 300);
+    }
+
+    #[test]
+    fn collector_persistence_round_trip_restores_runtime_state() {
+        let mut state_path = std::env::temp_dir();
+        state_path.push(format!("katara-runtime-state-{}.json", now_epoch()));
+
+        let mut collector = MetricsCollector::new();
+        collector.persistence_path = state_path.clone();
+        collector.record(RecordEntry {
+            raw: 120,
+            compiled: 70,
+            reused: 20,
+            provider: "ollama-llama3".into(),
+            model: "llama3:latest".into(),
+            cache_hit: false,
+            semantic_cache_hit: true,
+            semantic_fingerprint: Some("fp-test".into()),
+            cache_saved_tokens: 0,
+            intent: "general".into(),
+            sensitive: false,
+            upstream: UpstreamIdentity::default(),
+            scope: WorkspaceScope::default(),
+        });
+
+        let mut restored = MetricsCollector::new();
+        restored.persistence_path = state_path.clone();
+        restored.restore_from_disk().unwrap();
+
+        assert_eq!(restored.snapshot.total_requests, 1);
+        assert_eq!(restored.snapshot.raw_tokens, 120);
+        assert_eq!(restored.snapshot.compiled_tokens, 70);
+        assert_eq!(restored.snapshot.request_history.len(), 1);
+        assert_eq!(restored.snapshot.request_history[0].semantic_cache_hit, true);
+
+        let _ = std::fs::remove_file(state_path);
     }
 }
 

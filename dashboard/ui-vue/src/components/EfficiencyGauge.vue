@@ -2,7 +2,7 @@
   <section class="card gauge-card">
     <div class="gauge-header">
       <h2>AI Efficiency Score</h2>
-      <button type="button" class="help-icon" @click="showHelp = !showHelp" aria-label="Aide sur l'AI Efficiency Score">
+      <button type="button" class="help-icon" @click="showHelp = !showHelp" aria-label="Help about AI Efficiency Score">
         ?
       </button>
     </div>
@@ -30,13 +30,13 @@
       </div>
     </div>
     <p class="gauge-helper muted">
-      Entre 30 et 50 %, Katara est déjà très efficace. 100 % reste un plafond théorique.
+      Between 30% and 50%, Katara is already highly efficient. 100% is a theoretical ceiling.
     </p>
     <div v-if="showHelp" class="gauge-help-panel">
-      <p><strong>Comment lire ce score&nbsp;?</strong></p>
-      <p>0&nbsp;% signifie qu'aucun token n'est évité par rapport à l'envoi brut.</p>
-      <p>Autour de 30–50&nbsp;%, Katara réutilise et réduit déjà fortement le contexte.</p>
-      <p>100&nbsp;% est théorique&nbsp;: dans la pratique, un bon objectif est de rester au‑dessus de 30&nbsp;% sur vos gros scénarios.</p>
+      <p><strong>How should you read this score?</strong></p>
+      <p>0% means no tokens are avoided compared to sending raw context.</p>
+      <p>Around 30–50%, Katara already reuses and compresses context significantly.</p>
+      <p>100% is theoretical. In practice, staying above 30% on heavy workflows is a strong target.</p>
     </div>
   </section>
 </template>
@@ -86,9 +86,9 @@ const gaugeStyle = computed(() => {
 
 const bandLabel = computed(() => {
   const s = displayScore.value
-  if (s < 15) return 'À optimiser'
-  if (s < 30) return 'Correct'
-  return 'Efficace'
+  if (s < 15) return 'Needs tuning'
+  if (s < 30) return 'Good'
+  return 'Efficient'
 })
 </script>
 

@@ -38,6 +38,8 @@ export interface RequestLineage {
   routed_provider: string
   routed_model: string
   intent: string
+  semantic_cache_hit?: boolean
+  semantic_fingerprint?: string
   cache_hit: boolean
   sensitive: boolean
   ts: number

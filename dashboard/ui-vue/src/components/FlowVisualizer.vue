@@ -27,7 +27,7 @@
     </div>
 
     <div class="routing-panel">
-      <h3>Routing par LLM</h3>
+      <h3>LLM Routing</h3>
       <div class="route-branches">
         <div
           v-for="branch in branches"
@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { useMetricsStore } from '../store/metrics'
 import SvgIcon from './SvgIcon.vue'
 
@@ -68,10 +68,40 @@ const activeRouteClass = computed<null | 'local' | 'cloud' | 'midtier'>(() => {
   return classifyRouteProvider(last.routed_provider)
 })
 
+const nowEpoch = ref(Math.floor(Date.now() / 1000))
+const clock = window.setInterval(() => {
+  nowEpoch.value = Math.floor(Date.now() / 1000)
+}, 1000)
+
+onUnmounted(() => {
+  window.clearInterval(clock)
+})
+
+const fingerprintIsRunning = computed(() => {
+  const ts = metrics.lastRequest?.ts
+  if (!ts) return false
+  return nowEpoch.value - ts <= 8
+})
+
+const semanticFingerprintLabel = computed(() => {
+  const fp = metrics.lastRequest?.semantic_fingerprint
+  if (!fp) return 'pending'
+  if (fingerprintIsRunning.value) return 'running'
+  const short = fp.length > 10 ? fp.slice(0, 10) : fp
+  return `${short}…`
+})
+
+const semanticCacheLabel = computed(() => {
+  const last = metrics.lastRequest
+  if (!last) return `${metrics.cacheHitRatio}% hit`
+  const semantic = last.semantic_cache_hit ? 'semantic hit' : 'semantic miss'
+  return `${metrics.cacheHitRatio}% hit · ${semantic}`
+})
+
 const stages = computed(() => [
   { id: 'request', icon: 'inbox', label: 'Request', metric: `${metrics.rawTokens.toLocaleString()} tok`, variant: 'default' },
-  { id: 'fingerprint', icon: 'fingerprint', label: 'Fingerprint', metric: 'SHA-256', variant: 'default' },
-  { id: 'cache', icon: 'zap', label: 'Cache', metric: `${metrics.cacheHitRatio}% hit`, variant: 'accent' },
+  { id: 'fingerprint', icon: 'fingerprint', label: 'Fingerprint', metric: semanticFingerprintLabel.value, variant: 'default' },
+  { id: 'cache', icon: 'zap', label: 'Cache', metric: semanticCacheLabel.value, variant: 'accent' },
   { id: 'compiler', icon: 'wrench', label: 'Compiler', metric: `${metrics.compiledTokens.toLocaleString()} tok`, variant: 'primary' },
   { id: 'memory', icon: 'brain', label: 'Memory Lens', metric: `${metrics.memoryReusedTokens.toLocaleString()} reused`, variant: 'secondary' },
   { id: 'router', icon: 'shield', label: 'Router', metric: `${metrics.localRatio}% local`, variant: 'good' },

@@ -159,6 +159,34 @@
 - Runtime Audit filter state is now persisted in browser localStorage (tenant/project/time/custom range) and auto-restored after refresh/restart
 - Version consistency audit completed: runtime, MCP fallback, npm manifests, and operator docs aligned on `7.7.1`
 
+### V7.8 — Transparent Optimization Autopilot (planned)
+
+**Status:** In progress (Wave A started).
+
+- Product principle: users should only send a simple request; KATARA handles optimization automatically without requiring prompt engineering education
+- Objective: make `~50%` token/cost gains reachable on repetitive workflows while preserving response quality
+- Automatic canonicalization pipeline before fingerprinting (normalize volatile values, reduce formatting variance) to increase cacheability
+- Intent-native prompt shaping templates applied transparently (`debug`, `review`, `summarize`, `general`, `codegen`) to stabilize request structure
+- Adaptive context budgeting per intent and confidence level, with automatic fallback to safer (less aggressive) reduction when quality risk increases
+- Multi-level semantic cache strategy (exact, canonical, semantic-nearest) to convert near-duplicate user requests into reusable compiled contexts
+- Delta-first forwarding for long conversations (reuse stable blocks, send only meaningful changes)
+- Built-in quality guardrails (sampled dual-path validation and auto-tuning) so optimization remains invisible to end users
+- Excellence KPIs surfaced for operators (cacheability, avoidable tokens, quality drift) without exposing complexity to end users
+
+Implementation waves:
+
+- Wave A (fast ROI): canonicalization + intent templates + operational KPIs
+- Wave B (scale gains): multi-level cache + stronger delta-forwarding
+- Wave C (autonomous quality): adaptive optimizer with automatic aggressiveness tuning
+
+Wave A progress:
+
+- Canonicalization is now applied to semantic and chat cache key construction to reduce misses caused by volatile IDs and noisy formatting without changing user behavior
+- Flow visualizer now displays live semantic fingerprint/cache lineage signals instead of static fingerprint labels, improving operator trust in real-time automation
+- Transparent intent shaping is now active in compiler outputs via token-neutral per-intent markers (`debug`, `review`, `summarize`, `general`, `codegen`, `ocr`) to stabilize downstream behavior without increasing user complexity
+- Memory reuse telemetry now differentiates misses vs reuse correctly (no duplicate-looking compiled/memory values on misses), and Wave A UI labels are aligned to all-English copy
+- Runtime state is now transparently persisted and restored across backend restarts (metrics snapshot, runtime audit history, semantic/chat caches, context-store blocks) via `cache/runtime-state.json`
+
 ## Future iterations
 
 - Role-based access control (RBAC)

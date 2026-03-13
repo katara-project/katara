@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Transparent runtime persistence (2026-03-12)
+
+- Core runtime now saves and restores operational state automatically across backend restarts (metrics snapshot, request history, semantic cache, chat cache, and context-store blocks)
+- Persistence is transparent for users: dashboard data survives backend/application restarts without any manual export/import step
+- Runtime state is stored in `cache/runtime-state.json` by default and can be overridden with `KATARA_RUNTIME_STATE_PATH`
+
+### Changed — Roadmap product direction (2026-03-12)
+
+- Added `V7.8 — Transparent Optimization Autopilot (planned)` in `ROADMAP.md`
+- Clarified a zero-friction UX principle: users submit simple requests while KATARA applies canonicalization, intent shaping, adaptive reduction, cache optimization, and quality guardrails transparently
+- Added explicit 3-wave rollout framing (Wave A/B/C) to drive toward excellence-level efficiency gains without requiring user prompt education
+
+### Added — V7.8 Wave A kickoff (2026-03-12)
+
+- Added transparent canonicalization for semantic and chat cache key generation to increase cache hit probability on near-duplicate requests (volatile numeric IDs and UUID noise)
+- Preserved zero-friction UX: no user prompt changes required, optimization remains backend-native
+- Runtime lineage now carries semantic fingerprint/cache state, and the dashboard flow visualizer renders those values live (no static SHA label)
+- Added transparent intent shaping in compiler output with token-neutral intent markers to stabilize prompt structure without token-budget regressions
+
+### Fixed — Wave A UX consistency (2026-03-12)
+
+- Fixed memory reuse accounting so `Memory Reused` no longer mirrors compiled tokens on semantic-cache misses
+- Standardized AI Efficiency and help-panel copy to English
+- Updated flow pipeline labels/status to English (`LLM Routing`, fingerprint `pending`) for a consistent all-English dashboard experience
+- Standardized Overview fallback statuses to `pending` terminology to avoid mixed `waiting/pending` wording across pipeline views
+- Fingerprint stage now shows a visible `running` window (8s) after recent requests before switching to hash display, improving runtime observability
+
 ### Added — V7.7 Governance & Multi-tenant foundations (2026-03-12)
 
 - Added workspace scope config file `configs/workspace/workspace.yaml` with `tenant_id`, `project_id`, and optional `policy_pack`

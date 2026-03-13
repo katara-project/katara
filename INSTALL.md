@@ -213,6 +213,22 @@ KATARA_AUDIT_HISTORY_LIMIT=2000
 
 If both are set, KATARA applies both guards: entries older than the retention window are pruned, and the remaining history is capped to the configured limit.
 
+### Runtime state persistence
+
+KATARA persists runtime operational state automatically and restores it on startup. By default, the snapshot is stored at:
+
+```bash
+cache/runtime-state.json
+```
+
+You can override the location with:
+
+```bash
+KATARA_RUNTIME_STATE_PATH=/absolute/path/to/runtime-state.json
+```
+
+Persisted state includes metrics snapshot, runtime audit history, semantic/chat caches, and context-store blocks.
+
 ---
 
 ## Configure Workspace Scope (Tenant / Project)

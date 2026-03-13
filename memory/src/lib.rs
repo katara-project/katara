@@ -77,6 +77,19 @@ impl ContextStore {
     pub fn is_empty(&self) -> bool {
         self.blocks.is_empty()
     }
+
+    pub fn blocks(&self) -> Vec<ContextBlock> {
+        self.blocks.values().cloned().collect()
+    }
+
+    pub fn load_blocks(&mut self, blocks: Vec<ContextBlock>) {
+        self.blocks.clear();
+        for block in blocks {
+            if let Ok(fingerprint) = block.id.parse::<u64>() {
+                self.blocks.insert(fingerprint, block);
+            }
+        }
+    }
 }
 
 /// Lightweight standalone helper — kept for cases where a fingerprint is unavailable.

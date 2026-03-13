@@ -156,36 +156,36 @@ const insights = computed(() => {
   // Dynamic efficiency guidance
   if (metrics.efficiencyScore < 30 && metrics.totalRequests > 0) {
     result.push({
-      title: 'Augmenter l’AI Efficiency Score',
+      title: 'Increase AI Efficiency Score',
       description:
-        'Votre score moyen est en dessous de 30 %. Enchaînez plusieurs petites requêtes sur le même contexte (review + codegen) sans recoller les gros blocs pour augmenter la réutilisation.',
+        'Your average score is below 30%. Chain short requests on the same context (review + codegen) instead of re-pasting large blocks to increase reuse.',
       severity: 'medium',
       category: 'Efficiency',
-      impact: '+10–20 % sur les scénarios récurrents',
+      impact: '+10–20% on recurring workflows',
     })
   }
 
   // Dynamic cache suggestion
   if (metrics.cacheHitRatio < 40 && metrics.totalRequests > 10) {
     result.push({
-      title: 'Améliorer le cache sémantique',
+      title: 'Improve Semantic Cache Hit Rate',
       description:
-        'Le taux de cache est faible. Réutilisez les mêmes prompts (review de diff, debug d’erreur) plutôt que de reformuler complètement pour bénéficier des hits de cache.',
+        'Cache hit ratio is low. Reuse the same prompt skeletons (diff review, error debug) rather than fully rewriting requests to increase hits.',
       severity: 'medium',
       category: 'Cost',
-      impact: '-10–30 % de tokens envoyés',
+      impact: '-10–30% outbound tokens',
     })
   }
 
   // Dynamic sovereignty hint
   if (metrics.localRatio < 50 && metrics.totalRequests > 0) {
     result.push({
-      title: 'Renforcer l’usage du LLM local',
+      title: 'Increase Local LLM Usage',
       description:
-        'Une majorité de requêtes part encore vers le cloud. Vérifiez les intents sensibles (PII, logs internes) et ajustez la politique pour privilégier le provider local.',
+        'Most requests still route to cloud providers. Review sensitive intents (PII, internal logs) and adjust policies to favor local providers.',
       severity: 'high',
       category: 'Sovereignty',
-      impact: '+20–50 % de trafic souverain',
+      impact: '+20–50% sovereign traffic',
     })
   }
 

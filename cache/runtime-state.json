@@ -1,0 +1,379 @@
+{
+  "snapshot": {
+    "ts": 1773362882,
+    "total_requests": 6,
+    "raw_tokens": 24,
+    "compiled_tokens": 24,
+    "memory_reused_tokens": 0,
+    "efficiency_score": 0.0,
+    "local_ratio": 0.0,
+    "cache_hits": 0,
+    "cache_misses": 6,
+    "cache_saved_tokens": 0,
+    "history_raw": [
+      4,
+      8,
+      12,
+      16,
+      20,
+      24
+    ],
+    "history_compiled": [
+      4,
+      8,
+      12,
+      16,
+      20,
+      24
+    ],
+    "history_reused": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "history_hour_epochs": [
+      1773277200,
+      1773280800,
+      1773284400,
+      1773288000,
+      1773291600,
+      1773295200,
+      1773298800,
+      1773302400,
+      1773306000,
+      1773309600,
+      1773313200,
+      1773316800,
+      1773320400,
+      1773324000,
+      1773327600,
+      1773331200,
+      1773334800,
+      1773338400,
+      1773342000,
+      1773345600,
+      1773349200,
+      1773352800,
+      1773356400,
+      1773360000
+    ],
+    "history_hour_raw": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      24
+    ],
+    "history_hour_compiled": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      24
+    ],
+    "history_hour_reused": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "routes_local": 0,
+    "routes_cloud": 6,
+    "routes_midtier": 0,
+    "intent_stats": {
+      "general": {
+        "requests": 6,
+        "raw_tokens": 24,
+        "compiled_tokens": 24
+      }
+    },
+    "model_stats": {
+      "stepfun/step-3.5-flash:free@openrouter-step-3.5-flash-cloud": {
+        "model": "stepfun/step-3.5-flash:free",
+        "provider": "openrouter-step-3.5-flash-cloud",
+        "requests": 6,
+        "raw_tokens": 24,
+        "compiled_tokens": 24,
+        "memory_reused_tokens": 0,
+        "efficiency_score": 0.0,
+        "sovereign_requests": 0,
+        "non_sovereign_requests": 6,
+        "sovereign_ratio": 0.0
+      }
+    },
+    "upstream_stats": {
+      "VS Code Copilot Chat|unknown-provider|unknown-model": {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": "unknown-provider",
+        "upstream_model": "unknown-model",
+        "requests": 3,
+        "last_seen_ts": 1773362882
+      }
+    },
+    "last_request": {
+      "client_app": "VS Code Copilot Chat",
+      "upstream_provider": null,
+      "upstream_model": null,
+      "tenant_id": null,
+      "project_id": null,
+      "policy_pack": null,
+      "routed_provider": "openrouter-step-3.5-flash-cloud",
+      "routed_model": "stepfun/step-3.5-flash:free",
+      "intent": "general",
+      "semantic_cache_hit": false,
+      "semantic_fingerprint": "1520350930825678341",
+      "cache_hit": false,
+      "sensitive": false,
+      "ts": 1773362882
+    },
+    "request_history": [
+      {
+        "client_app": null,
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "7102773152935880159",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773362808
+      },
+      {
+        "client_app": null,
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "4562693701669831746",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773362808
+      },
+      {
+        "client_app": null,
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "1912732714797960571",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773362808
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "6963501329150326024",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773362882
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "10581253336479954718",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773362882
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "1520350930825678341",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773362882
+      }
+    ]
+  },
+  "sem_cache_entries": [
+    {
+      "fingerprint": 7102773152935880159,
+      "intent": "general",
+      "raw_tokens_estimate": 4,
+      "compiled_tokens_estimate": 4,
+      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|first persistent test request"
+    },
+    {
+      "fingerprint": 1912732714797960571,
+      "intent": "general",
+      "raw_tokens_estimate": 4,
+      "compiled_tokens_estimate": 4,
+      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|third persistent test request"
+    },
+    {
+      "fingerprint": 1520350930825678341,
+      "intent": "general",
+      "raw_tokens_estimate": 4,
+      "compiled_tokens_estimate": 4,
+      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|persistence e2e request gamma"
+    },
+    {
+      "fingerprint": 4562693701669831746,
+      "intent": "general",
+      "raw_tokens_estimate": 4,
+      "compiled_tokens_estimate": 4,
+      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|second persistent test request"
+    },
+    {
+      "fingerprint": 6963501329150326024,
+      "intent": "general",
+      "raw_tokens_estimate": 4,
+      "compiled_tokens_estimate": 4,
+      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|persistence e2e request alpha"
+    },
+    {
+      "fingerprint": 10581253336479954718,
+      "intent": "general",
+      "raw_tokens_estimate": 4,
+      "compiled_tokens_estimate": 4,
+      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|persistence e2e request beta"
+    }
+  ],
+  "chat_cache": {},
+  "context_blocks": [
+    {
+      "id": "1520350930825678341",
+      "stability": 1.0,
+      "content": "[k:general]|persistence e2e request gamma"
+    },
+    {
+      "id": "4562693701669831746",
+      "stability": 1.0,
+      "content": "[k:general]|second persistent test request"
+    },
+    {
+      "id": "1912732714797960571",
+      "stability": 1.0,
+      "content": "[k:general]|third persistent test request"
+    },
+    {
+      "id": "6963501329150326024",
+      "stability": 1.0,
+      "content": "[k:general]|persistence e2e request alpha"
+    },
+    {
+      "id": "10581253336479954718",
+      "stability": 1.0,
+      "content": "[k:general]|persistence e2e request beta"
+    },
+    {
+      "id": "7102773152935880159",
+      "stability": 1.0,
+      "content": "[k:general]|first persistent test request"
+    }
+  ],
+  "hour_buckets": {
+    "1773360000": [
+      24,
+      24,
+      0
+    ]
+  }
+}
