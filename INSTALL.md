@@ -765,4 +765,4 @@ target-dir = "C:/distira-target"
 
 ---
 
-*License: AGPL-3.0 + Commons Clause — Copyright 2024-2026 Christophe Freijanes*
+*License: AGPL-3.0 — Free and open-source. Copyright 2024-2026 Christophe Freijanes*

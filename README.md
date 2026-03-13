@@ -29,7 +29,7 @@ None of them touch the context itself.
 
 Distira is not a proxy. It is the layer **between your intent and the model call**.
 
-```
+```md
 Raw context (12 000 tokens)
         │
    [ Context Budget Compiler ]   →  compiled:  2 400 tokens  (−80%)
@@ -59,27 +59,31 @@ Every saving is **provable**:
 ## The 4 differentiating building blocks
 
 ### A. Context Budget Compiler
+
 Reduces logs, stack traces, diffs, conversation histories, and transcripts.
 Extracts signal. Removes noise. Cuts tokens before they reach a model.
 
 ### B. Context Memory Lensing
+
 Builds a structured memory of stable context blocks.
 Sends only what is new, changed, or still relevant.
 This is the core innovation: **delta-first forwarding**.
 
 ### C. Hybrid Sovereign Routing
+
 Chooses the right provider — local, private, or cloud — based on:
 confidentiality, cost, latency, policy, and model capability.
 Sensitive data never leaves local. Always.
 
 ### D. AI Flow Visualizer
+
 Makes every optimization step visible in a live dark dashboard.
 Shows before/after, cloud vs local, reused context, and real efficiency gains.
 Demonstrable. Memorable. Trustworthy.
 
 ---
 
-## Not a gateway. Not a proxy.
+## Not a gateway. Not a proxy
 
 The market already has proxies, routers, fallback logic, cost dashboards, and guardrails.
 If Distira stopped there, it would be compared to Kong AI, LiteLLM, or PortKey.
@@ -135,7 +139,7 @@ Clients / IDE / Agents
 
 ```text
 ┌─────────────────────┐         POST /v1/compile            ┌──────────────────────────┐
-│   Client (curl,     │ ──────────────────────────────────► │   DISTIRA Rust Backend    │
+│   Client (curl,     │ ──────────────────────────────────► │   DISTIRA Rust Backend   │
 │   VS Code ext,      │                                     │                          │
 │   any AI tool)      │ ◄────── JSON response ───────────── │  compile() → fingerprint │
 └─────────────────────┘                                     │   → cache → compiler     │
@@ -286,18 +290,19 @@ See [INSTALL.md](INSTALL.md#vs-code-agent-mcp) for setup instructions and [TESTI
                │ MCP stdio (JSON-RPC 2.0)
                ▼
 ┌──────────────────────────────┐
-│ Distira MCP Server            │
-│ mcp/distira-server.mjs        │
-│ - distira_compile             │
-│ - distira_chat                │
-│ - distira_metrics             │
-│ - distira_providers           │
+│ Distira MCP Server           │
+│ mcp/distira-server.mjs       │
+│ - distira_compile            │
+│ - distira_chat               │
+│ - distira_metrics            │
+│ - distira_providers          │
 └──────────────┬───────────────┘
                │
                │ HTTP (localhost:8080)
                ▼
 ┌──────────────────────────────┐
-│ Distira App (Rust backend)    │
+│ Distira App (Rust backend)    
+│
 │ core + compiler + memory     │
 │ cache + router + metrics     │
 │ /v1/compile                  │
@@ -332,8 +337,24 @@ Live benchmarks, MCP agent integration, and per-intent metrics are operational.
 Provider adapters (`/v1/chat/completions`) forward to real Ollama and Mistral cloud endpoints.
 It is not yet a fully production-complete gateway across every provider.
 
+---
+
+## Author
+
+Distira is designed and built by **Christophe Freijanes**.
+
+This project is my public exploration of a question I find genuinely important:
+> *What if the intelligence layer was not the model, but the context you give it?*
+
+If Distira resonates with you — whether you use it, fork it, benchmark it, or just think the idea is worth pursuing — I'd love to connect.
+
+- GitHub: [@christophefreijanes](https://github.com/christophefreijanes)
+- LinkedIn: [Christophe Freijanes](https://www.linkedin.com/in/christophefreijanes)
+
+⭐ Star the repo if you find it useful. It helps the project get discovered.
+
 ## License
 
-[AGPL-3.0 + Commons Clause](LICENSE) — Copyright 2024–2026 Christophe Freijanes and DISTIRA contributors.
+[AGPL-3.0](LICENSE) — Free and open-source. Copyright 2024–2026 Christophe Freijanes and DISTIRA contributors.
 
-Free for personal, educational, and non-commercial use. Commercial redistribution or resale requires explicit written authorization from the original author.
+Use it, fork it, build on it. If you distribute a modified version or run it as a service, publish your source under the same license.
