@@ -23,12 +23,13 @@
         <RouterLink :to="{ name: 'memory' }" @click="menuOpen = false"><SvgIcon name="brain" :size="18" /> Memory</RouterLink>
         <RouterLink :to="{ name: 'insights' }" @click="menuOpen = false"><SvgIcon name="lightbulb" :size="18" /> Insights</RouterLink>
         <RouterLink :to="{ name: 'benchmarks' }" @click="menuOpen = false"><SvgIcon name="trending-up" :size="18" /> Benchmarks</RouterLink>
+        <RouterLink :to="{ name: 'audit' }" @click="menuOpen = false"><SvgIcon name="radio" :size="18" /> Runtime Audit</RouterLink>
       </nav>
       <div class="sidebar-footer">
         <span class="sse-indicator" :class="{ live: metrics.connected }">
           <span class="dot" /> {{ metrics.connected ? 'Live' : 'Offline' }}
         </span>
-        <span class="version-tag">v7.0.0</span>
+        <span class="version-tag">v{{ metrics.appVersion }}</span>
       </div>
     </aside>
     <main class="content">

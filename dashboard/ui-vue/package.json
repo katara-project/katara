@@ -1,6 +1,6 @@
 {
   "name": "katara-dashboard",
-  "version": "7.0.0",
+  "version": "7.7.1",
   "private": true,
   "type": "module",
   "scripts": {

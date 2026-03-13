@@ -53,6 +53,17 @@ pub struct RouteDecision {
     pub api_key_env: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderSummary {
+    pub key: String,
+    pub provider_type: String,
+    pub model: String,
+    pub deployment: String,
+    pub base_url: String,
+    pub description: String,
+    pub api_key_env: Option<String>,
+}
+
 /// Holds the loaded config. Created once at startup, then shared.
 #[derive(Debug, Clone)]
 pub struct RouterConfig {
@@ -198,6 +209,30 @@ impl RouterConfig {
     pub fn list_providers(&self) -> Vec<String> {
         self.providers.keys().cloned().collect()
     }
+
+    pub fn list_provider_summaries(&self) -> Vec<ProviderSummary> {
+        let mut summaries: Vec<_> = self
+            .providers
+            .iter()
+            .map(|(key, config)| ProviderSummary {
+                key: key.clone(),
+                provider_type: config
+                    .provider_type
+                    .clone()
+                    .unwrap_or_else(|| "unknown".into()),
+                model: config.model.clone().unwrap_or_default(),
+                deployment: config
+                    .deployment
+                    .clone()
+                    .unwrap_or_else(|| "unknown".into()),
+                base_url: config.base_url.clone(),
+                description: config.description.clone().unwrap_or_default(),
+                api_key_env: config.api_key_env.clone(),
+            })
+            .collect();
+        summaries.sort_by(|left, right| left.key.cmp(&right.key));
+        summaries
+    }
 }
 
 // ── Legacy compat — keep simple function for basic usage ──
@@ -260,5 +295,13 @@ mod tests {
         let d = choose_provider("general", false);
         assert!(!d.provider.is_empty());
         assert!(!d.base_url.is_empty());
+    }
+
+    #[test]
+    fn provider_summaries_include_models() {
+        let cfg = RouterConfig::defaults();
+        let summaries = cfg.list_provider_summaries();
+        assert!(!summaries.is_empty());
+        assert!(summaries.iter().any(|summary| !summary.model.is_empty()));
     }
 }

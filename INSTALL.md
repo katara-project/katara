@@ -1,6 +1,6 @@
 # Installation & Configuration Guide
 
-> **KATARA v7.0.1** — Sovereign AI Context Operating System
+> **KATARA v7.7.1** — Sovereign AI Context Operating System
 
 ---
 
@@ -199,6 +199,43 @@ policies:
   log_level: info                       # debug | info | warn | error
 ```
 
+### Runtime Audit retention (recommended production defaults)
+
+To avoid keeping unnecessary audit data in memory, configure retention with these environment variables:
+
+```bash
+KATARA_AUDIT_RETENTION_DAYS=7
+KATARA_AUDIT_HISTORY_LIMIT=2000
+```
+
+- `KATARA_AUDIT_RETENTION_DAYS`: time-based retention window for Runtime Audit entries.
+- `KATARA_AUDIT_HISTORY_LIMIT`: max number of Runtime Audit entries kept in memory.
+
+If both are set, KATARA applies both guards: entries older than the retention window are pruned, and the remaining history is capped to the configured limit.
+
+---
+
+## Configure Workspace Scope (Tenant / Project)
+
+V7.7 introduces workspace-level scope foundations for future per-tenant routing and policy packs.
+
+Create or edit `configs/workspace/workspace.yaml`:
+
+```yaml
+---
+workspace:
+  tenant_id: "default-tenant"
+  project_id: "katara-platform"
+  policy_pack: "baseline"
+```
+
+You can also override scope per request via:
+
+- `POST /v1/runtime/client-context` with `tenant_id` and `project_id`
+- `POST /v1/compile` and `POST /v1/chat/completions` payloads with `tenant_id` and `project_id`
+
+Resolution order is: request payload > runtime client-context > workspace defaults.
+
 ---
 
 ## Run KATARA
@@ -237,9 +274,9 @@ ollama serve
 Pull the models you declared in providers.yaml:
 
 ```bash
-ollama pull llama3.1
-ollama pull codellama
-ollama pull mistral
+ollama pull llama3:latest          # general, summarize, default
+ollama pull qwen2.5-coder:7b       # code review
+ollama pull mistral:7b-instruct    # debug, analysis
 ```
 
 Verify Ollama is running:
@@ -271,7 +308,7 @@ cargo run -p core
 You will see:
 
 ```md
-KATARA v7.0.0 — Sovereign AI Context OS
+KATARA v7.7.1 — Sovereign AI Context OS
 ────────────────────────────────────────
   Config loaded from configs/
     provider: ollama-llama3
@@ -299,18 +336,22 @@ Open http://localhost:5173 — the green **Live** dot confirms SSE connection.
 
 ## Test Your Setup
 
+For the full test suite (intent routing, cache, MCP agent, dashboard), see **[TESTING.md](TESTING.md)**.
+
+Quick smoke tests below:
+
 ### Health check
 
 ```bash
 curl http://localhost:8080/healthz
-# {"status":"ok","service":"katara-core","version":"7.0.0"}
+# {"status":"ok","service":"katara-core","version":"7.7.1"}
 ```
 
 ### List providers
 
 ```bash
 curl http://localhost:8080/v1/providers
-# {"providers":["ollama-llama3","ollama-codellama","ollama-mistral"]}
+# {"providers":["ollama-llama3","ollama-qwen2.5-coder","ollama-mistral","ollama-ocr-deepseek","mistral-ocr-cloud"]}
 ```
 
 ### Compile only (no LLM call)
@@ -321,7 +362,9 @@ curl -X POST http://localhost:8080/v1/compile \
   -d '{"context": "Debug this auth function with retry logic", "sensitive": false}'
 ```
 
-Response includes `provider`, `model`, `intent`, `compiled_tokens`, `cache_hit`, etc.
+Response includes `provider`, `model`, `intent`, `compiled_tokens`, `cache_hit`, `routing_reason`.
+
+**Expected:** `intent="debug"`, `provider="ollama-mistral"`
 
 ### Full LLM call (compile + forward)
 
@@ -335,7 +378,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 
 This will:
 1. Detect intent → `general`
-2. Route to `ollama-llama3` (Llama 3.1)
+2. Route to `ollama-llama3` (`llama3:latest`)
 3. Forward to Ollama on localhost:11434
 4. Return OpenAI-compatible response with a `katara` section showing optimization stats
 
@@ -379,11 +422,10 @@ curl -fsSL https://ollama.com/install.sh | sh    # Linux
 # Start Ollama
 ollama serve
 
-# Pull models
-ollama pull llama3.1       # 8B general
-ollama pull codellama      # code tasks
-ollama pull mistral        # debug/analysis
-ollama pull phi3           # lightweight alternative
+# Pull models (matching providers.yaml)
+ollama pull llama3:latest          # general, summarize, default
+ollama pull qwen2.5-coder:7b       # code review
+ollama pull mistral:7b-instruct    # debug, analysis
 
 # Verify
 ollama list
@@ -391,14 +433,13 @@ ollama list
 
 ### Map models to KATARA providers
 
-Each model you pull in Ollama should have a corresponding entry in `configs/providers/providers.yaml`:
+Each model you pull in Ollama must have a corresponding entry in `configs/providers/providers.yaml`:
 
-| Ollama model | providers.yaml key | Suggested routing           |
-|--------------|--------------------|-----------------------------|
-| `llama3.1`   | `ollama-llama3`    | default, general, summarize |
-| `codellama`  | `ollama-codellama` | review (code)               |
-| `mistral`    | `ollama-mistral`   | debug                       |
-| `phi3`       | `ollama-phi3`      | lightweight fallback        |
+| Ollama model | providers.yaml key | Suggested routing |
+|---|---|---|
+| `llama3:latest` | `ollama-llama3` | default, general, summarize |
+| `qwen2.5-coder:7b` | `ollama-qwen2.5-coder` | review (code) |
+| `mistral:7b-instruct` | `ollama-mistral` | debug, analysis |
 
 ---
 
@@ -480,13 +521,13 @@ cargo run -p core
 
 ```bash
 # Build
-docker build -f deployments/docker/Dockerfile -t katara/core:7.0.0 .
+docker build -f deployments/docker/Dockerfile -t katara/core:7.7.1 .
 
 # Run (with config mounted)
 docker run -p 8080:8080 \
   -v $(pwd)/configs:/app/configs:ro \
   -e OPENAI_API_KEY="sk-..." \
-  katara/core:7.0.0
+  katara/core:7.7.1
 ```
 
 For Ollama running on the host:
@@ -495,7 +536,7 @@ For Ollama running on the host:
 docker run -p 8080:8080 \
   -v $(pwd)/configs:/app/configs:ro \
   --add-host host.docker.internal:host-gateway \
-  katara/core:7.0.0
+  katara/core:7.7.1
 ```
 
 Then change `base_url` in providers.yaml to `http://host.docker.internal:11434/v1`.
@@ -552,6 +593,7 @@ kubectl create configmap katara-config \
 ## VS Code Agent (MCP)
 
 KATARA includes an MCP (Model Context Protocol) server that integrates with VS Code Copilot Chat.
+It uses `@modelcontextprotocol/sdk` v1.27.1 with `StdioServerTransport` (JSON-RPC 2.0 over stdio).
 
 ### Requires
 
@@ -561,9 +603,31 @@ KATARA includes an MCP (Model Context Protocol) server that integrates with VS C
 
 ### Setup
 
-1. The MCP server is already registered in `.vscode/mcp.json`. VS Code will detect it automatically.
-2. Start the KATARA backend: `cargo run -p core`
-3. In Copilot Chat, type `@katara` followed by your request.
+1. **Install MCP dependencies** (first-time only):
+
+```powershell
+Set-Location mcp
+npm install
+Set-Location ..
+```
+
+2. The MCP server is already registered in `.vscode/mcp.json` with the correct `cwd`. VS Code detects it automatically on startup.
+
+3. Start the KATARA backend: `cargo run -p core`
+
+4. In Copilot Chat, type `@katara` followed by your request.
+
+### How it works
+
+```text
+VS Code Copilot Chat
+  │
+  └─ spawns: node katara-server.mjs (cwd: mcp/)
+              │
+              └─ stdio JSON-RPC 2.0 (Content-Length framing)
+                   │
+                   └─ HTTP → http://127.0.0.1:8080
+```
 
 ### Available tools
 
@@ -571,14 +635,73 @@ KATARA includes an MCP (Model Context Protocol) server that integrates with VS C
 |------|-------------|---------|
 | `katara_compile` | Compile raw context (no LLM call) | `@katara compile this error trace` |
 | `katara_chat` | Compile + forward to LLM | `@katara explain circuit breaker pattern` |
+| `katara_set_client_context` | Update live upstream model/provider context | `@katara set client context to Claude Sonnet 4.6 on Anthropic` |
 | `katara_providers` | List configured providers | `@katara list providers` |
 | `katara_metrics` | Fetch live metrics snapshot | `@katara show metrics` |
 
+### Upstream model lineage
+
+The MCP server automatically forwards upstream client metadata to KATARA so the dashboard can distinguish:
+
+- the assistant or client model selected by the user
+- the model actually routed by KATARA
+
+Default behavior:
+
+- `client_app` → `VS Code Copilot Chat`
+- `upstream_model` → the `model` argument passed to `katara_chat`, MCP request `_meta`, or a runtime resolver command
+- `upstream_provider` → MCP request `_meta`, runtime resolver command, or inferred from the model family when possible
+
+Optional environment overrides:
+
+```text
+KATARA_CLIENT_APP=VS Code Copilot Chat
+KATARA_UPSTREAM_PROVIDER=GitHub Copilot
+KATARA_UPSTREAM_MODEL=GPT-5.4
+```
+
+These static environment variables are only fallbacks. For dynamic behavior, prefer a runtime resolver command that is evaluated on every request:
+
+```text
+KATARA_CLIENT_CONTEXT_CMD=powershell -File ..\scripts\resolve-upstream-context.ps1
+```
+
+Expected command output:
+
+```json
+{
+  "client_app": "VS Code Copilot Chat",
+  "upstream_provider": "Anthropic",
+  "upstream_model": "Claude Sonnet 4.6"
+}
+```
+
+KATARA also accepts request metadata keys when the MCP client can send them:
+
+- `katara/client_app`
+- `katara/upstream_provider`
+- `katara/upstream_model`
+
+This is the dynamic path. If the upstream client changes model from one request to another and exposes that value, KATARA will reflect it immediately without restart.
+
+If the client does not expose it directly, you can still update the live runtime context without restart:
+
+```powershell
+.\scripts\set-upstream-context.ps1 -UpstreamProvider "Anthropic" -UpstreamModel "Claude Sonnet 4.6"
+```
+
+KATARA also exposes `GET/POST /v1/runtime/client-context` for programmatic updates.
+
+### Validate the MCP integration
+
+See [TESTING.md — MCP Agent Tests](TESTING.md#mcp-agent-tests-vs-code) for step-by-step validation.
+
 ### Manual test (without VS Code)
 
-```bash
-node mcp/katara-server.mjs
-# Communicates via stdio with Content-Length framing (JSON-RPC 2.0)
+```powershell
+Set-Location mcp
+node katara-server.mjs
+# Send JSON-RPC 2.0 initialize + tools/list messages via stdin
 ```
 
 ---

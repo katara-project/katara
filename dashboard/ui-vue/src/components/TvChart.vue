@@ -43,8 +43,8 @@
       </g>
     </svg>
     <!-- X labels -->
-    <div v-if="labels.length" class="tv-labels">
-      <span v-for="(l, i) in labels" :key="i" class="tv-label">{{ l }}</span>
+    <div v-if="visibleLabels.length" class="tv-labels">
+      <span v-for="(l, i) in visibleLabels" :key="i" class="tv-label">{{ l }}</span>
     </div>
     <!-- Tooltip -->
     <div v-if="hoveredIdx >= 0" class="tv-tooltip" :style="tooltipStyle">
@@ -111,6 +111,17 @@ const gridX = computed(() => {
     pts.push(padL + (i / Math.max(len - 1, 1)) * (props.width - padL - padR))
   }
   return pts
+})
+const visibleLabels = computed(() => {
+  const labels = props.labels ?? []
+  const len = labels.length
+  if (!len) return labels
+
+  // Keep labels readable: cap visible ticks to ~7 along the x-axis.
+  const step = Math.max(1, Math.ceil((len - 1) / 6))
+  return labels.map((label: string, idx: number) =>
+    idx === 0 || idx === len - 1 || idx % step === 0 ? label : ''
+  )
 })
 
 const seriesData = computed(() => {
@@ -257,7 +268,12 @@ function exportPng() {
   justify-content: space-between;
   padding: 4px 8px 0;
 }
-.tv-label { font-size: 0.72rem; color: var(--muted); }
+.tv-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  min-width: 40px;
+  text-align: center;
+}
 /* Tooltip */
 .tv-tooltip {
   position: absolute;

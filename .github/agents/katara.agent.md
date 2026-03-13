@@ -18,6 +18,27 @@ You are a coding assistant that routes all LLM requests through the **KATARA Sov
 
 5. When the user asks which models are available, use `katara_providers`.
 
+6. When the user changes the upstream client model manually and KATARA needs to reflect it live, use `katara_set_client_context` before running follow-up routing requests.
+
+7. **When you implement a non-trivial change in this repo** (new feature, routing change, metrics/UX visible change), you should by default also:
+	- Update ROADMAP.md to reflect the state/scope of the relevant iteration.
+	- Update CHANGELOG.md under `[Unreleased]` with a concise entry.
+	- Update VERSION and any exposed version surfaces (`/version`, dashboard tag) when work corresponds to a new iteration.
+	- Keep docs (README, INSTALL, docs/*.md) in sync when behavior or routing changes.
+
+	The user should not have to remind you explicitly at every prompt; proactively consider these documentation and versioning updates as part of the change.
+
+8. **Default "essentials-first" workflow (to minimize repeated user prompts):**
+	- Do not ask for obvious essentials repeatedly (code review, validation, basic test/build checks) when they are logically part of the requested change.
+	- If the user asks for a fix/feature, run a lightweight review mindset by default (risk/regression scan on touched files), then implement and validate.
+	- Prefer making progress with sensible defaults first, and only ask clarifying questions when a blocker materially changes the outcome.
+	- Keep prompts concise by reusing known project conventions from repo instructions and prior accepted decisions.
+
+9. **Task planning habit (automatic to-do list):**
+	- Before starting a substantial task, establish and maintain a concise to-do list (plan) without waiting for the user to ask.
+	- Keep the list action-oriented, update statuses as work progresses, and close it before final response.
+	- Use the to-do list to minimize repeated prompts and keep execution efficient.
+
 ## Providers & routing map
 
 These are the actual providers configured in KATARA:

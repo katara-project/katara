@@ -4,12 +4,16 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheEntry {
     pub fingerprint: u64,
-    pub response: String,
+    pub intent: String,
+    pub raw_tokens_estimate: usize,
+    pub compiled_tokens_estimate: usize,
+    pub summary: String,
+    pub compiled_context: String,
 }
 
 #[derive(Debug, Default)]
 pub struct SemanticCache {
-    store: HashMap<u64, String>,
+    store: HashMap<u64, CacheEntry>,
 }
 
 impl SemanticCache {
@@ -17,12 +21,12 @@ impl SemanticCache {
         Self::default()
     }
 
-    pub fn get(&self, fingerprint: u64) -> Option<&str> {
-        self.store.get(&fingerprint).map(String::as_str)
+    pub fn get(&self, fingerprint: u64) -> Option<&CacheEntry> {
+        self.store.get(&fingerprint)
     }
 
-    pub fn insert(&mut self, fingerprint: u64, response: String) {
-        self.store.insert(fingerprint, response);
+    pub fn insert(&mut self, entry: CacheEntry) {
+        self.store.insert(entry.fingerprint, entry);
     }
 
     pub fn len(&self) -> usize {
@@ -41,8 +45,17 @@ mod tests {
     #[test]
     fn cache_insert_and_get() {
         let mut cache = SemanticCache::new();
-        cache.insert(42, "cached response".into());
-        assert_eq!(cache.get(42), Some("cached response"));
+        cache.insert(CacheEntry {
+            fingerprint: 42,
+            intent: "general".into(),
+            raw_tokens_estimate: 100,
+            compiled_tokens_estimate: 40,
+            summary: "summary".into(),
+            compiled_context: "cached response".into(),
+        });
+        let entry = cache.get(42).unwrap();
+        assert_eq!(entry.compiled_context, "cached response");
+        assert_eq!(entry.intent, "general");
     }
 
     #[test]
@@ -55,8 +68,22 @@ mod tests {
     fn cache_len() {
         let mut cache = SemanticCache::new();
         assert!(cache.is_empty());
-        cache.insert(1, "a".into());
-        cache.insert(2, "b".into());
+        cache.insert(CacheEntry {
+            fingerprint: 1,
+            intent: "general".into(),
+            raw_tokens_estimate: 1,
+            compiled_tokens_estimate: 1,
+            summary: "a".into(),
+            compiled_context: "a".into(),
+        });
+        cache.insert(CacheEntry {
+            fingerprint: 2,
+            intent: "general".into(),
+            raw_tokens_estimate: 1,
+            compiled_tokens_estimate: 1,
+            summary: "b".into(),
+            compiled_context: "b".into(),
+        });
         assert_eq!(cache.len(), 2);
     }
 }

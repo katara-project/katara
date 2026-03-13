@@ -25,50 +25,174 @@
 </template>
 
 <script setup lang="ts">
-const insights = [
+import { computed } from 'vue'
+import { useMetricsStore } from '../store/metrics'
+
+interface InsightItem {
+  title: string
+  description: string
+  severity: 'high' | 'medium' | 'low'
+  category: string
+  impact: string
+}
+
+const INSIGHT_POOL: InsightItem[] = [
   {
     title: 'Increase local routing for PII queries',
     description: 'Analysis shows 12% of PII-flagged requests still route to cloud providers. Tightening policy rules could redirect these locally.',
     severity: 'high',
     category: 'Sovereignty',
-    impact: '\u221212% cloud PII exposure',
+    impact: '-12% cloud PII exposure',
   },
   {
     title: 'Enable semantic cache for code review',
-    description: 'Code review prompts show 38% duplication across sessions. Enabling cache for the \"review\" intent would reduce redundant LLM calls.',
+    description: 'Code review prompts show 38% duplication across sessions. Enabling cache for the review intent would reduce redundant LLM calls.',
     severity: 'medium',
     category: 'Cost',
-    impact: '\u2212$420/mo estimated',
+    impact: '-$420/mo estimated',
   },
   {
     title: 'Compress system prompts above 800 tokens',
     description: 'System prompts average 1,100 tokens. Applying compiler reduction to system context could save 27% per request.',
     severity: 'medium',
     category: 'Performance',
-    impact: '\u2212300 tokens/req avg',
+    impact: '-300 tokens/req avg',
   },
   {
-    title: 'Upgrade Ollama to v0.4 for faster inference',
-    description: 'Local Ollama instance runs v0.3.2. Upgrading to v0.4 provides 18% faster token generation with quantized models.',
+    title: 'Upgrade Ollama runtime for faster inference',
+    description: 'Outdated runtime versions can increase latency. Upgrading can improve throughput on quantized local models.',
     severity: 'low',
     category: 'Performance',
     impact: '+18% local throughput',
   },
   {
-    title: 'Add Mistral fallback for code generation',
-    description: 'Debug intent currently routes only to Mistral Cloud. Adding a fallback to OpenAI-compatible improves resilience.',
+    title: 'Add fallback for code generation',
+    description: 'Single-provider intent routes reduce resiliency. Add an explicit fallback provider for degraded scenarios.',
     severity: 'low',
     category: 'Reliability',
-    impact: '99.9% \u2192 99.99% uptime',
+    impact: '99.9% to 99.99% uptime',
   },
   {
     title: 'Memory lens coverage below target',
-    description: 'Only 48.6% context reuse \u2014 target is 65%. Increasing stable block TTL from 3 to 5 turns may help.',
+    description: 'Only 48.6% context reuse while target is 65%. Increasing stable block TTL from 3 to 5 turns may help.',
     severity: 'medium',
     category: 'Efficiency',
     impact: '+16.4% reuse potential',
   },
+  {
+    title: 'Pin high-confidence intents before routing',
+    description: 'Intent drift on short prompts triggers inconsistent provider selection. Add confidence gating to reduce accidental cloud routes.',
+    severity: 'medium',
+    category: 'Routing',
+    impact: '-9% route variance',
+  },
+  {
+    title: 'Enable warm-start for local models',
+    description: 'Cold starts on low-traffic periods increase first-token latency. Keep one warm worker for primary models.',
+    severity: 'low',
+    category: 'Performance',
+    impact: '-420ms first-token latency',
+  },
+  {
+    title: 'Tighten fallback policy for sensitive flows',
+    description: 'Some fallback paths can still target non-local providers when policies are incomplete. Add explicit deny rules for sensitive intents.',
+    severity: 'high',
+    category: 'Sovereignty',
+    impact: '-100% non-local sensitive fallback',
+  },
+  {
+    title: 'Cache frequent system preambles',
+    description: 'Repeated instruction headers appear across sessions. Pre-hashing and reusing stable preambles will reduce repeated tokens.',
+    severity: 'medium',
+    category: 'Cost',
+    impact: '-11% prompt spend',
+  },
+  {
+    title: 'Add timeout tiers by provider class',
+    description: 'Uniform timeouts penalize local and cloud differently. Provider-class timeouts improve resilience and reduce retries.',
+    severity: 'low',
+    category: 'Reliability',
+    impact: '-14% timeout retries',
+  },
+  {
+    title: 'Increase metrics granularity per model',
+    description: 'Provider-level aggregation hides model behavior. Tracking model-level efficiency highlights underperforming models quickly.',
+    severity: 'medium',
+    category: 'Observability',
+    impact: '+1-click anomaly detection',
+  },
+  {
+    title: 'Apply diff compaction for long code reviews',
+    description: 'Large diffs still carry unchanged hunks. Aggressive compaction before routing reduces context window pressure.',
+    severity: 'medium',
+    category: 'Efficiency',
+    impact: '-22% average compiled tokens',
+  },
+  {
+    title: 'Use dedicated OCR queue on cloud fallback',
+    description: 'OCR spikes can starve other intents. Splitting OCR traffic improves response-time consistency for chat workloads.',
+    severity: 'low',
+    category: 'Reliability',
+    impact: '+19% p95 stability',
+  },
 ]
+
+function pickRandomInsights(pool: InsightItem[], count: number): InsightItem[] {
+  const shuffled = [...pool]
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = shuffled[i]
+    shuffled[i] = shuffled[j]
+    shuffled[j] = tmp
+  }
+  return shuffled.slice(0, Math.min(count, shuffled.length))
+}
+
+const metrics = useMetricsStore()
+
+const insights = computed(() => {
+  const result: InsightItem[] = []
+
+  // Dynamic efficiency guidance
+  if (metrics.efficiencyScore < 30 && metrics.totalRequests > 0) {
+    result.push({
+      title: 'Augmenter l’AI Efficiency Score',
+      description:
+        'Votre score moyen est en dessous de 30 %. Enchaînez plusieurs petites requêtes sur le même contexte (review + codegen) sans recoller les gros blocs pour augmenter la réutilisation.',
+      severity: 'medium',
+      category: 'Efficiency',
+      impact: '+10–20 % sur les scénarios récurrents',
+    })
+  }
+
+  // Dynamic cache suggestion
+  if (metrics.cacheHitRatio < 40 && metrics.totalRequests > 10) {
+    result.push({
+      title: 'Améliorer le cache sémantique',
+      description:
+        'Le taux de cache est faible. Réutilisez les mêmes prompts (review de diff, debug d’erreur) plutôt que de reformuler complètement pour bénéficier des hits de cache.',
+      severity: 'medium',
+      category: 'Cost',
+      impact: '-10–30 % de tokens envoyés',
+    })
+  }
+
+  // Dynamic sovereignty hint
+  if (metrics.localRatio < 50 && metrics.totalRequests > 0) {
+    result.push({
+      title: 'Renforcer l’usage du LLM local',
+      description:
+        'Une majorité de requêtes part encore vers le cloud. Vérifiez les intents sensibles (PII, logs internes) et ajustez la politique pour privilégier le provider local.',
+      severity: 'high',
+      category: 'Sovereignty',
+      impact: '+20–50 % de trafic souverain',
+    })
+  }
+
+  const remaining = INSIGHT_POOL.filter((item) => !result.some((r) => r.title === item.title))
+  const filler = pickRandomInsights(remaining, 8 - result.length)
+  return [...result, ...filler]
+})
 </script>
 
 <style scoped>

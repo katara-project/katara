@@ -1,0 +1,6 @@
+﻿{
+    "upstream_provider":  "Anthropic",
+    "updated_at":  1773349187,
+    "client_app":  "VS Code Copilot Chat",
+    "upstream_model":  "Claude Sonnet 4.6"
+}

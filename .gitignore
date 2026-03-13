@@ -73,5 +73,6 @@ docker-compose.override.yml
 *.bak
 *.tmp
 *.temp
+build*.txt
 .cache/
 .parcel-cache/

@@ -1,0 +1,5 @@
+---
+workspace:
+  tenant_id: "default-tenant"
+  project_id: "katara-platform"
+  policy_pack: "baseline"

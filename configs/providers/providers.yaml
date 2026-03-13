@@ -24,14 +24,14 @@ providers:
     deployment: on-prem
     description: Qwen 2.5 Coder 7B — code generation, review
 
-  ollama-mistral:
+  ollama-mistral-7b-instruct:
     type: openai-compatible
     base_url: http://localhost:11434/v1
     model: mistral:7b-instruct
     deployment: on-prem
     description: Mistral 7B local — debug, analysis
 
-  ollama-ocr-deepseek:
+  ollama-deepseek-ocr:
     type: openai-compatible
     base_url: http://localhost:11434/v1
     model: deepseek-ocr:3b
@@ -39,7 +39,7 @@ providers:
     description: DeepSeek OCR 3B — optical character recognition
 
   # ── Cloud providers (optional) ──────────────────────
-  mistral-ocr-cloud:
+  mistral-ocr-2512-cloud:
     type: mistral
     base_url: https://api.mistral.ai/v1
     model: mistral-ocr-2512
@@ -47,10 +47,26 @@ providers:
     api_key_env: MISTRAL_API_KEY
     description: Mistral OCR 2512 cloud endpoint
 
-  # openai-cloud:
-  #   type: openai-compatible
-  #   base_url: https://api.openai.com/v1
-  #   model: gpt-4o-mini
-  #   deployment: cloud
-  #   api_key_env: OPENAI_API_KEY
-  #   description: OpenAI GPT-4o-mini cloud
+  openrouter-step-3.5-flash-cloud:
+    type: openai-compatible
+    base_url: https://openrouter.ai/api/v1
+    model: stepfun/step-3.5-flash:free
+    deployment: cloud
+    api_key_env: OPENROUTER_API_KEY
+    description: StepFun 3.5 Flash free cloud
+
+  openrouter-mistral-small-3.1-24b-instruct-cloud:
+    type: openai-compatible
+    base_url: https://openrouter.ai/api/v1
+    model: mistralai/mistral-small-3.1-24b-instruct:free
+    deployment: cloud
+    api_key_env: OPENROUTER_API_KEY
+    description: Mistral Small 3.1 24B Instruct free cloud
+
+  #openai-cloud:
+  #  type: openai-compatible
+  #  base_url: https://api.openai.com/v1
+  #  model: gpt-4o-mini
+  #  deployment: cloud
+  #  api_key_env: OPENAI_API_KEY
+  #  description: OpenAI GPT-4o-mini cloud
