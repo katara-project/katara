@@ -1,0 +1,111 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 500">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1">
+      <stop offset="0%" stop-color="#060B12"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+  </defs>
+  <rect width="1500" height="500" fill="url(#bg)"/>
+  <g transform="translate(70,40) scale(0.75)">
+    
+  <defs>
+    <linearGradient id="metal" x1="0" x2="1">
+      <stop offset="0%" stop-color="#B6C2D3"/>
+      <stop offset="35%" stop-color="#E6ECF5"/>
+      <stop offset="70%" stop-color="#B6C2D3"/>
+      <stop offset="100%" stop-color="#7F8EA3"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" x2="1">
+      <stop offset="0%" stop-color="#0B4DFF"/>
+      <stop offset="55%" stop-color="#11B9FF"/>
+      <stop offset="100%" stop-color="#7EE7FF"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#020617" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- outer press frame -->
+  <g filter="url(#shadow)">
+    <!-- top beam -->
+    <path d="M74 122
+             C74 110 84 100 96 100
+             H416
+             C428 100 438 110 438 122
+             V158
+             C438 170 428 180 416 180
+             H367
+             C360 180 354 186 354 193
+             V203
+             C354 210 348 216 341 216
+             H171
+             C164 216 158 210 158 203
+             V193
+             C158 186 152 180 145 180
+             H96
+             C84 180 74 170 74 158 Z"
+          fill="url(#metal)"/>
+
+    <!-- bottom beam -->
+    <path d="M96 296
+             H145
+             C152 296 158 290 158 283
+             V273
+             C158 266 164 260 171 260
+             H341
+             C348 260 354 266 354 273
+             V283
+             C354 290 360 296 367 296
+             H416
+             C428 296 438 306 438 318
+             V354
+             C438 366 428 376 416 376
+             H96
+             C84 376 74 366 74 354
+             V318
+             C74 306 84 296 96 296 Z"
+          fill="url(#metal)"/>
+
+    <!-- side posts -->
+    <rect x="90" y="178" width="42" height="118" rx="8" fill="url(#metal)"/>
+    <rect x="380" y="178" width="42" height="118" rx="8" fill="url(#metal)"/>
+
+    <!-- screw -->
+    <rect x="243" y="62" width="26" height="66" rx="7" fill="url(#metal)"/>
+    <rect x="228" y="46" width="56" height="24" rx="8" fill="url(#metal)"/>
+    <rect x="210" y="128" width="92" height="30" rx="12" fill="url(#metal)"/>
+  </g>
+
+  <!-- blue compressed layers -->
+  <g>
+    <path d="M172 176
+             H340
+             C352 176 362 186 362 198
+             C362 210 352 220 340 220
+             H172
+             C160 220 150 210 150 198
+             C150 186 160 176 172 176 Z"
+          fill="url(#blue)"/>
+    <path d="M164 224
+             H348
+             C360 224 370 234 370 246
+             C370 258 360 268 348 268
+             H164
+             C152 268 142 258 142 246
+             C142 234 152 224 164 224 Z"
+          fill="url(#blue)"/>
+    <path d="M176 272
+             H336
+             C348 272 358 282 358 294
+             C358 306 348 316 336 316
+             H176
+             C164 316 154 306 154 294
+             C154 282 164 272 176 272 Z"
+          fill="url(#blue)"/>
+  </g>
+
+  </g>
+  <text x="520" y="220" fill="#EAF1FF" font-size="120" font-family="Inter, Arial, sans-serif" font-weight="600" letter-spacing="7">DISTIRA</text>
+  <text x="526" y="285" fill="#9FB3D1" font-size="34" font-family="Inter, Arial, sans-serif" font-weight="400">Compile the smallest useful context before every LLM call</text>
+</svg>

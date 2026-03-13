@@ -1,8 +1,8 @@
 # DISTIRA
 
-![DISTIRA](brand/distira_banner_linkedin_personal.svg)
+![DISTIRA](brand/distira_banner_1600x900.svg)
 
-> **The Sovereign AI Flow Engine** — compile the smallest useful context before every LLM call.
+> **Distira is a Sovereign AI Context Operating System** that compiles the smallest useful context before every LLM call.
 
 [![CI](https://github.com/distira-project/distira/actions/workflows/ci.yml/badge.svg?branch=wip-chf)](https://github.com/distira-project/distira/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commons%20Clause-blue.svg)](LICENSE)
