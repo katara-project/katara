@@ -11,6 +11,11 @@ Write-Host ''
 $warnings = @()
 
 # -- 1. Check Rust --------------------------------------
+# Ensure ~/.cargo/bin is in PATH for this session
+if (Test-Path "$env:USERPROFILE\.cargo\bin") {
+    $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+}
+
 if (Get-Command cargo -ErrorAction SilentlyContinue) {
     $rustVer = (rustc --version) -replace 'rustc ','' -replace ' .*',''
     Write-Host "[ok] Rust $rustVer" -ForegroundColor Green

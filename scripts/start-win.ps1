@@ -22,6 +22,11 @@ Write-Host ''
 $rootDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $rootDir
 
+# -- Ensure cargo is in PATH for this session -----------
+if (Test-Path "$env:USERPROFILE\.cargo\bin") {
+    $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+}
+
 # -- Load .env secrets into current process --------------
 if (Test-Path '.env') {
     Get-Content '.env' | ForEach-Object {
