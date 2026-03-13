@@ -461,9 +461,13 @@ fn compile_with_semantic_cache(
     }
 
     let result = compiler::compile_context(raw);
-    collector.sem_cache.insert(cache_entry_from_compile_result(fingerprint, &result));
+    collector
+        .sem_cache
+        .insert(cache_entry_from_compile_result(fingerprint, &result));
     // Register compiled context in real memory store for future reuse tracking
-    collector.context_store.register(fingerprint, &result.compiled_context);
+    collector
+        .context_store
+        .register(fingerprint, &result.compiled_context);
     (fingerprint, result, false)
 }
 
@@ -715,9 +719,15 @@ fn apply_compiled_user_message(messages: &[Value], compiled_content: &str) -> Ve
     }
 
     let mut rewritten = messages.to_vec();
-    if let Some(index) = rewritten.iter().rposition(|message| message["role"] == "user") {
+    if let Some(index) = rewritten
+        .iter()
+        .rposition(|message| message["role"] == "user")
+    {
         if let Some(object) = rewritten[index].as_object_mut() {
-            object.insert("content".into(), Value::String(compiled_content.to_string()));
+            object.insert(
+                "content".into(),
+                Value::String(compiled_content.to_string()),
+            );
         }
     } else {
         rewritten.push(json!({
@@ -751,7 +761,12 @@ fn compress_conversation_history(messages: &[Value]) -> Vec<Value> {
                 return None;
             }
             let short: String = if content.split_whitespace().count() > 20 {
-                content.split_whitespace().take(20).collect::<Vec<_>>().join(" ") + " [...]"
+                content
+                    .split_whitespace()
+                    .take(20)
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    + " [...]"
             } else {
                 content
             };
@@ -913,7 +928,9 @@ async fn compile(
 
     let mut collector = state.collector.lock().unwrap();
     let (fp, result, cache_hit) = compile_with_semantic_cache(&mut collector, raw);
-    let mem = collector.context_store.compute_reuse(fp, result.raw_tokens_estimate);
+    let mem = collector
+        .context_store
+        .compute_reuse(fp, result.raw_tokens_estimate);
     let runtime_context = read_runtime_client_context();
     let scope = resolve_workspace_scope(
         payload.tenant_id.as_deref(),
@@ -1033,7 +1050,9 @@ async fn chat_completions(
     let fp = build_chat_cache_key(&forwarded_messages, &payload.extra_body);
     let mem = {
         let collector = state.collector.lock().unwrap();
-        collector.context_store.compute_reuse(semantic_fp, result.raw_tokens_estimate)
+        collector
+            .context_store
+            .compute_reuse(semantic_fp, result.raw_tokens_estimate)
     };
     let route = state
         .router_config
@@ -1150,7 +1169,8 @@ async fn chat_completions(
             api_key.as_deref(),
             &payload.extra_body,
         )
-        .await {
+        .await
+        {
             Ok(response) => {
                 {
                     let mut collector = state.collector.lock().unwrap();
@@ -1271,7 +1291,8 @@ async fn chat_completions(
         api_key.as_deref(),
         &payload.extra_body,
     )
-    .await {
+    .await
+    {
         Ok(fwd) => {
             {
                 let mut collector = state.collector.lock().unwrap();
@@ -1480,7 +1501,10 @@ mod tests {
         assert!(!first_hit);
         assert!(second_hit);
         assert_eq!(first_fp, second_fp);
-        assert_eq!(first_result.compiled_context, second_result.compiled_context);
+        assert_eq!(
+            first_result.compiled_context,
+            second_result.compiled_context
+        );
         assert_eq!(collector.sem_cache.len(), 1);
     }
 

@@ -128,12 +128,22 @@ fn reduce_debug_context(raw: &str) -> String {
 
     // Tier 1: Error / panic headline signals
     let error_kw = [
-        "error", "panic", "exception", "fatal", "caused by",
-        "failed", "failure", "segfault", "crash", "abort",
+        "error",
+        "panic",
+        "exception",
+        "fatal",
+        "caused by",
+        "failed",
+        "failure",
+        "segfault",
+        "crash",
+        "abort",
     ];
     // Tier 2: Stack trace / source-location signals
     let trace_kw = ["trace", "stack", "at ", "--> ", " | ", "note:"];
-    let file_suffixes = [".rs:", ".py:", ".js:", ".ts:", ".go:", ".java:", ".c:", ".cpp:"];
+    let file_suffixes = [
+        ".rs:", ".py:", ".js:", ".ts:", ".go:", ".java:", ".c:", ".cpp:",
+    ];
 
     let head: Vec<String> = lines.iter().take(3).cloned().collect();
     let mut priority1: Vec<String> = Vec::new();
@@ -183,7 +193,9 @@ fn reduce_review_context(raw: &str) -> String {
         .into_iter()
         .filter(|line| {
             let trimmed = line.trim_start();
-            diff_markers.iter().any(|marker| trimmed.starts_with(marker))
+            diff_markers
+                .iter()
+                .any(|marker| trimmed.starts_with(marker))
         })
         .collect();
 
@@ -312,7 +324,10 @@ mod tests {
         assert_eq!(result.raw_tokens_estimate, 120);
         assert_eq!(result.compiled_tokens_estimate, 40);
         assert!(result.compiled_tokens_estimate <= result.raw_tokens_estimate);
-        assert_eq!(token_count(&result.compiled_context), result.compiled_tokens_estimate);
+        assert_eq!(
+            token_count(&result.compiled_context),
+            result.compiled_tokens_estimate
+        );
     }
 
     #[test]

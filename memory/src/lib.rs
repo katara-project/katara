@@ -28,7 +28,9 @@ pub struct ContextStore {
 
 impl ContextStore {
     pub fn new() -> Self {
-        ContextStore { blocks: HashMap::new() }
+        ContextStore {
+            blocks: HashMap::new(),
+        }
     }
 
     /// Store a compiled context block keyed by fingerprint.
@@ -54,9 +56,17 @@ impl ContextStore {
             } else {
                 0.0
             };
-            MemorySummary { reused_tokens: reused, delta_tokens: delta, context_reuse_ratio: ratio }
+            MemorySummary {
+                reused_tokens: reused,
+                delta_tokens: delta,
+                context_reuse_ratio: ratio,
+            }
         } else {
-            MemorySummary { reused_tokens: 0, delta_tokens: raw_tokens, context_reuse_ratio: 0.0 }
+            MemorySummary {
+                reused_tokens: 0,
+                delta_tokens: raw_tokens,
+                context_reuse_ratio: 0.0,
+            }
         }
     }
 
@@ -78,7 +88,11 @@ pub fn summarize_memory(raw_tokens: usize) -> MemorySummary {
     } else {
         reused_tokens as f32 / raw_tokens as f32
     };
-    MemorySummary { reused_tokens, delta_tokens, context_reuse_ratio: ratio }
+    MemorySummary {
+        reused_tokens,
+        delta_tokens,
+        context_reuse_ratio: ratio,
+    }
 }
 
 #[cfg(test)]
@@ -140,4 +154,3 @@ mod tests {
         assert!((reuse.context_reuse_ratio - 1.0).abs() < f32::EPSILON);
     }
 }
-

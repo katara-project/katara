@@ -56,7 +56,9 @@ pub async fn forward(
     // the final answer in `message.content` and thinking tokens in
     // `message.reasoning`. When `content` is null/empty we fall back to
     // `message.reasoning` so the caller always gets something useful.
-    let msg = json["choices"].get(0).and_then(|c| c["message"].as_object());
+    let msg = json["choices"]
+        .get(0)
+        .and_then(|c| c["message"].as_object());
     let content = msg
         .and_then(|m| m.get("content").and_then(|v| v.as_str()))
         .filter(|s| !s.is_empty())
