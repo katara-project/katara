@@ -125,6 +125,11 @@ export const useMetricsStore = defineStore('metrics', () => {
   // ── SSE connection ─────────────────────────────────
   let es: EventSource | null = null
   let versionPollHandle: number | null = null
+  let watchdogHandle: number | null = null
+  let lastEventAt = 0   // wall-clock ms of last successfully parsed SSE event
+
+  const WATCHDOG_INTERVAL_MS = 5_000   // check every 5 s
+  const WATCHDOG_STALE_MS    = 10_000  // force reconnect if no event for 10 s
 
   async function fetchVersion() {
     try {
@@ -174,6 +179,7 @@ export const useMetricsStore = defineStore('metrics', () => {
     // Clean up a stale CLOSED instance before creating a new one.
     if (es) { es.close(); es = null }
 
+    lastEventAt = Date.now()   // reset so watchdog doesn't fire immediately
     es = new EventSource(SSE_URL)
     void fetchVersion()
     if (versionPollHandle === null) {
@@ -182,13 +188,32 @@ export const useMetricsStore = defineStore('metrics', () => {
       }, 30000)
     }
 
-    es.onopen = () => { connected.value = true }
+    // ── Watchdog: force reconnect when the stream goes silently stale ────────
+    // Covers the case where the browser's EventSource is stuck in CONNECTING
+    // with exponential backoff (readyState !== CLOSED so onerror guard misses it),
+    // or when a proxy silently drops the connection without sending an error.
+    if (watchdogHandle === null) {
+      watchdogHandle = window.setInterval(() => {
+        const stale = Date.now() - lastEventAt > WATCHDOG_STALE_MS
+        if (stale) {
+          connected.value = false
+          if (es) { es.close(); es = null }
+          connect()
+        }
+      }, WATCHDOG_INTERVAL_MS)
+    }
+
+    es.onopen = () => {
+      connected.value = true
+      lastEventAt = Date.now()
+    }
 
     es.addEventListener('metrics', (ev) => {
       try {
         const snapshot: MetricsSnapshot = JSON.parse(ev.data)
         applySnapshot(snapshot)
         connected.value = true
+        lastEventAt = Date.now()
       } catch {
         // ignore malformed events
       }
@@ -213,6 +238,10 @@ export const useMetricsStore = defineStore('metrics', () => {
     if (versionPollHandle !== null) {
       window.clearInterval(versionPollHandle)
       versionPollHandle = null
+    }
+    if (watchdogHandle !== null) {
+      window.clearInterval(watchdogHandle)
+      watchdogHandle = null
     }
   }
 
