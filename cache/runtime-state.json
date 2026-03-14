@@ -1,17 +1,16 @@
 {
   "snapshot": {
-    "ts": 1773523353,
-    "total_requests": 50,
-    "raw_tokens": 1862,
-    "compiled_tokens": 1249,
+    "ts": 1773523956,
+    "total_requests": 51,
+    "raw_tokens": 1903,
+    "compiled_tokens": 1273,
     "memory_reused_tokens": 17,
-    "efficiency_score": 62.92159,
-    "local_ratio": 26.0,
+    "efficiency_score": 63.105625,
+    "local_ratio": 27.450981,
     "cache_hits": 3,
-    "cache_misses": 47,
+    "cache_misses": 48,
     "cache_saved_tokens": 0,
     "history_raw": [
-      822,
       863,
       913,
       956,
@@ -34,10 +33,10 @@
       1784,
       1821,
       1846,
-      1862
+      1862,
+      1903
     ],
     "history_compiled": [
-      577,
       609,
       630,
       653,
@@ -60,7 +59,8 @@
       1186,
       1208,
       1227,
-      1249
+      1249,
+      1273
     ],
     "history_reused": [
       17,
@@ -138,7 +138,7 @@
       0,
       199,
       402,
-      197
+      238
     ],
     "history_hour_compiled": [
       0,
@@ -164,7 +164,7 @@
       0,
       133,
       258,
-      139
+      163
     ],
     "history_hour_reused": [
       0,
@@ -192,7 +192,7 @@
       0,
       0
     ],
-    "routes_local": 13,
+    "routes_local": 14,
     "routes_cloud": 36,
     "routes_midtier": 1,
     "intent_stats": {
@@ -202,9 +202,9 @@
         "compiled_tokens": 865
       },
       "debug": {
-        "requests": 12,
-        "raw_tokens": 522,
-        "compiled_tokens": 342
+        "requests": 13,
+        "raw_tokens": 563,
+        "compiled_tokens": 366
       },
       "codegen": {
         "requests": 1,
@@ -257,12 +257,12 @@
       "mistral:7b-instruct@ollama-mistral-7b-instruct": {
         "model": "mistral:7b-instruct",
         "provider": "ollama-mistral-7b-instruct",
-        "requests": 12,
-        "raw_tokens": 522,
-        "compiled_tokens": 342,
+        "requests": 13,
+        "raw_tokens": 563,
+        "compiled_tokens": 366,
         "memory_reused_tokens": 17,
-        "efficiency_score": 64.48276,
-        "sovereign_requests": 12,
+        "efficiency_score": 64.99112,
+        "sovereign_requests": 13,
         "non_sovereign_requests": 0,
         "sovereign_ratio": 100.0
       }
@@ -279,8 +279,8 @@
         "client_app": "VS Code Copilot Chat",
         "upstream_provider": "GitHub Copilot",
         "upstream_model": "Claude Sonnet 4.6",
-        "requests": 18,
-        "last_seen_ts": 1773523353
+        "requests": 19,
+        "last_seen_ts": 1773523956
       }
     },
     "last_request": {
@@ -290,14 +290,14 @@
       "tenant_id": null,
       "project_id": null,
       "policy_pack": null,
-      "routed_provider": "openrouter-step-3.5-flash-cloud",
-      "routed_model": "stepfun/step-3.5-flash:free",
-      "intent": "general",
+      "routed_provider": "ollama-mistral-7b-instruct",
+      "routed_model": "mistral:7b-instruct",
+      "intent": "debug",
       "semantic_cache_hit": false,
-      "semantic_fingerprint": "3514485783912649129",
+      "semantic_fingerprint": "11184980845543479893",
       "cache_hit": false,
       "sensitive": false,
-      "ts": 1773523353,
+      "ts": 1773523956,
       "cost_usd": 0.0
     },
     "request_history": [
@@ -1150,6 +1150,23 @@
         "sensitive": false,
         "ts": 1773523353,
         "cost_usd": 0.0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": "GitHub Copilot",
+        "upstream_model": "Claude Sonnet 4.6",
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "ollama-mistral-7b-instruct",
+        "routed_model": "mistral:7b-instruct",
+        "intent": "debug",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "11184980845543479893",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773523956,
+        "cost_usd": 0.0
       }
     ],
     "session_cost_usd": 0.0,
@@ -1452,6 +1469,15 @@
       "summary": "Intent: general. Reduced estimated context from 44 to 26 tokens and trimmed low-signal context while preserving the main request.",
       "compiled_context": "[k:general]|Continue DISTIRA project iterations - V9.13 Memory stability ...",
       "created_at": 1773519999
+    },
+    {
+      "fingerprint": 11184980845543479893,
+      "intent": "debug",
+      "raw_tokens_estimate": 41,
+      "compiled_tokens_estimate": 24,
+      "summary": "Intent: debug. Reduced estimated context from 41 to 24 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
+      "compiled_context": "[k:debug]|Run cargo fmt --all -- --check fix formatting error ...",
+      "created_at": 1773523956
     },
     {
       "fingerprint": 12638352127299873646,
@@ -1780,6 +1806,11 @@
       "content": "[k:general]|Set minimum AI efficiency score floor to 30% ..."
     },
     {
+      "id": "11184980845543479893",
+      "stability": 1.0,
+      "content": "[k:debug]|Run cargo fmt --all -- --check fix formatting error ..."
+    },
+    {
       "id": "9375416537127978950",
       "stability": 1.0,
       "content": "[k:general]|What improvements could be made to the DISTIRA ..."
@@ -1862,8 +1893,8 @@
   ],
   "hour_buckets": {
     "1773522000": [
-      197,
-      139,
+      238,
+      163,
       0
     ],
     "1773518400": [

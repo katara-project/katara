@@ -2403,7 +2403,11 @@ async fn metrics_stream(
             .blocks()
             .into_iter()
             .map(|b| {
-                let short_id = if b.id.len() > 8 { b.id[..8].to_string() } else { b.id.clone() };
+                let short_id = if b.id.len() > 8 {
+                    b.id[..8].to_string()
+                } else {
+                    b.id.clone()
+                };
                 json!({
                     "id": short_id,
                     "stability": (b.stability * 100.0).round() / 100.0,
