@@ -42,6 +42,7 @@ export interface RequestLineage {
   semantic_fingerprint?: string
   cache_hit: boolean
   sensitive: boolean
+  cost_usd?: number
   ts: number
 }
 
@@ -76,10 +77,13 @@ export interface MetricsSnapshot {
   upstream_stats: Record<string, UpstreamStat>
   last_request?: RequestLineage
   request_history: RequestLineage[]
+  session_cost_usd?: number
+  last_request_cost_usd?: number
 }
 
-const SSE_URL = 'http://localhost:8080/v1/metrics/stream'
-const VERSION_URL = 'http://localhost:8080/version'
+const SSE_URL     = '/v1/metrics/stream'
+const VERSION_URL = '/version'
+const REST_URL    = '/v1/metrics'
 
 export const useMetricsStore = defineStore('metrics', () => {
   // ── reactive state ─────────────────────────────────
@@ -111,6 +115,8 @@ export const useMetricsStore = defineStore('metrics', () => {
   const upstreamStats = ref<Record<string, UpstreamStat>>({})
   const lastRequest = ref<RequestLineage | null>(null)
   const requestHistory = ref<RequestLineage[]>([])
+  const sessionCostUsd = ref(0)
+  const lastRequestCostUsd = ref(0)
 
   const cacheHitRatio = computed(() => {
     const total = cacheHits.value + cacheMisses.value
@@ -120,6 +126,26 @@ export const useMetricsStore = defineStore('metrics', () => {
   // ── SSE connection ─────────────────────────────────
   let es: EventSource | null = null
   let versionPollHandle: number | null = null
+  let watchdogHandle: number | null = null
+  let restPollHandle: number | null = null   // guaranteed REST poll (always-on)
+  let lastEventAt = 0   // wall-clock ms of last successfully parsed SSE event
+
+  const WATCHDOG_INTERVAL_MS = 5_000   // check every 5 s
+  const WATCHDOG_STALE_MS    = 10_000  // force reconnect if no event for 10 s
+
+  // ── REST polling fallback ──────────────────────────────────────────────────
+  // When the SSE stream is stale, pull a fresh snapshot from the REST endpoint
+  // so the dashboard never shows frozen data while the watchdog reconnects.
+  async function pollRest() {
+    try {
+      const res = await fetch(REST_URL)
+      if (!res.ok) return
+      const snapshot: MetricsSnapshot = await res.json()
+      applySnapshot(snapshot)
+    } catch {
+      // ignore — backend may be momentarily unreachable
+    }
+  }
 
   async function fetchVersion() {
     try {
@@ -158,31 +184,78 @@ export const useMetricsStore = defineStore('metrics', () => {
     upstreamStats.value = s.upstream_stats ?? {}
     lastRequest.value = s.last_request ?? null
     requestHistory.value = s.request_history ?? []
+    sessionCostUsd.value = s.session_cost_usd ?? 0
+    lastRequestCostUsd.value = s.last_request_cost_usd ?? 0
     lastTs.value = s.ts
   }
 
   function connect() {
-    if (es) return
+    // If we already have a live (CONNECTING or OPEN) EventSource, do nothing.
+    if (es && es.readyState !== EventSource.CLOSED) return
+    // Clean up a stale CLOSED instance before creating a new one.
+    if (es) { es.close(); es = null }
+
+    lastEventAt = Date.now()   // reset so watchdog doesn't fire immediately
     es = new EventSource(SSE_URL)
+    void pollRest()             // populate UI immediately; don't wait for first SSE event
     void fetchVersion()
+
+    // ── Guaranteed REST poll (always-on) ────────────────────────────────────
+    // Runs every 5 s regardless of SSE state — ensures the dashboard always
+    // shows live data even when EventSource is silently stuck.
+    if (restPollHandle === null) {
+      restPollHandle = window.setInterval(() => { void pollRest() }, 5_000)
+    }
     if (versionPollHandle === null) {
       versionPollHandle = window.setInterval(() => {
         void fetchVersion()
       }, 30000)
     }
 
-    es.addEventListener('metrics', (ev) => {
+    // ── Watchdog: force reconnect when the stream goes silently stale ────────
+    // Covers the case where the browser's EventSource is stuck in CONNECTING
+    // with exponential backoff (readyState !== CLOSED so onerror guard misses it),
+    // or when a proxy silently drops the connection without sending an error.
+    if (watchdogHandle === null) {
+      watchdogHandle = window.setInterval(() => {
+        const stale = Date.now() - lastEventAt > WATCHDOG_STALE_MS
+        if (stale) {
+          connected.value = false
+          void pollRest()   // pull fresh data via REST while SSE reconnects
+          if (es) { es.close(); es = null }
+          connect()
+        }
+      }, WATCHDOG_INTERVAL_MS)
+    }
+
+    es.onopen = () => {
+      connected.value = true
+      lastEventAt = Date.now()
+    }
+
+    // Named event emitted by Axum's Sse::new().  Some proxies strip the
+    // `event:` line and deliver a generic `message` event instead — we listen
+    // for both so the dashboard works transparently behind any proxy.
+    function handleSseEvent(ev: MessageEvent) {
       try {
         const snapshot: MetricsSnapshot = JSON.parse(ev.data)
         applySnapshot(snapshot)
         connected.value = true
+        lastEventAt = Date.now()
       } catch {
         // ignore malformed events
       }
-    })
+    }
+    es.addEventListener('metrics', handleSseEvent)
+    es.addEventListener('message', handleSseEvent)
 
     es.onerror = () => {
       connected.value = false
+      // When the browser gives up retrying (CLOSED state), schedule a manual reconnect.
+      if (es?.readyState === EventSource.CLOSED) {
+        es = null
+        window.setTimeout(connect, 3000)
+      }
     }
   }
 
@@ -195,6 +268,14 @@ export const useMetricsStore = defineStore('metrics', () => {
     if (versionPollHandle !== null) {
       window.clearInterval(versionPollHandle)
       versionPollHandle = null
+    }
+    if (watchdogHandle !== null) {
+      window.clearInterval(watchdogHandle)
+      watchdogHandle = null
+    }
+    if (restPollHandle !== null) {
+      window.clearInterval(restPollHandle)
+      restPollHandle = null
     }
   }
 
@@ -231,6 +312,8 @@ export const useMetricsStore = defineStore('metrics', () => {
     upstreamStats,
     lastRequest,
     requestHistory,
+    sessionCostUsd,
+    lastRequestCostUsd,
     connect,
     disconnect,
   }

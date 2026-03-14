@@ -5,13 +5,14 @@
       <button class="burger" aria-label="Toggle menu" @click="menuOpen = !menuOpen">
         <span /><span /><span />
       </button>
-      <div class="brand-icon">K</div>
-      <span class="mobile-title">DISTIRA</span>
+      <div class="brand-icon">
+        <img src="/distira_app_icon.svg" alt="Distira" class="brand-logo" />
+      </div>
     </header>
     <div v-if="menuOpen" class="overlay" @click="menuOpen = false" />
     <aside class="sidebar" :class="{ open: menuOpen }">
       <div class="brand-wrap">
-        <div class="brand-icon">K</div>
+        <div class="brand-icon"><img src="/distira_app_icon.svg" alt="Distira" class="brand-logo" /></div>
         <div>
           <h1>DISTIRA</h1>
           <p class="brand-sub">Sovereign AI Context OS</p>

@@ -19,8 +19,8 @@ routing:
     # ── Debug / stack traces → local Mistral 7B ─────────
     debug: ollama-mistral-7b-instruct
     # ── Summarization → best free cloud (24B quality) ───
-    summarize: openrouter-mistral-small-3.1-24b-instruct-cloud
-    # ── General queries → StepFun Flash free cloud ──────
+    summarize: openrouter-mistral-small-3.1-24b-instruct-cloud    # ── Translation → multilingual cloud model ──────────
+    translate: openrouter-mistral-small-3.1-24b-instruct-cloud    # ── General queries → StepFun Flash free cloud ──────
     general: openrouter-step-3.5-flash-cloud
     # ── OCR → cloud Mistral OCR (best accuracy) ─────────
     ocr: mistral-ocr-2512-cloud

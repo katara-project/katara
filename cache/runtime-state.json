@@ -1,64 +1,76 @@
 {
   "snapshot": {
-    "ts": 1773362882,
-    "total_requests": 6,
-    "raw_tokens": 24,
-    "compiled_tokens": 24,
-    "memory_reused_tokens": 0,
-    "efficiency_score": 0.0,
-    "local_ratio": 0.0,
-    "cache_hits": 0,
-    "cache_misses": 6,
+    "ts": 1773458158,
+    "total_requests": 10,
+    "raw_tokens": 299,
+    "compiled_tokens": 192,
+    "memory_reused_tokens": 17,
+    "efficiency_score": 35.785954,
+    "local_ratio": 40.0,
+    "cache_hits": 3,
+    "cache_misses": 7,
     "cache_saved_tokens": 0,
     "history_raw": [
-      4,
-      8,
-      12,
-      16,
-      20,
-      24
+      67,
+      68,
+      81,
+      132,
+      183,
+      229,
+      241,
+      297,
+      298,
+      299
     ],
     "history_compiled": [
-      4,
-      8,
-      12,
-      16,
-      20,
-      24
+      42,
+      43,
+      59,
+      90,
+      121,
+      147,
+      161,
+      190,
+      191,
+      192
     ],
     "history_reused": [
       0,
       0,
       0,
       0,
-      0,
-      0
+      17,
+      17,
+      17,
+      17,
+      17,
+      17
     ],
     "history_hour_epochs": [
-      1773277200,
-      1773280800,
-      1773284400,
-      1773288000,
-      1773291600,
-      1773295200,
-      1773298800,
-      1773302400,
-      1773306000,
-      1773309600,
-      1773313200,
-      1773316800,
-      1773320400,
-      1773324000,
-      1773327600,
-      1773331200,
-      1773334800,
-      1773338400,
-      1773342000,
-      1773345600,
-      1773349200,
-      1773352800,
-      1773356400,
-      1773360000
+      1773374400,
+      1773378000,
+      1773381600,
+      1773385200,
+      1773388800,
+      1773392400,
+      1773396000,
+      1773399600,
+      1773403200,
+      1773406800,
+      1773410400,
+      1773414000,
+      1773417600,
+      1773421200,
+      1773424800,
+      1773428400,
+      1773432000,
+      1773435600,
+      1773439200,
+      1773442800,
+      1773446400,
+      1773450000,
+      1773453600,
+      1773457200
     ],
     "history_hour_raw": [
       0,
@@ -80,11 +92,11 @@
       0,
       0,
       0,
+      67,
+      162,
+      68,
       0,
-      0,
-      0,
-      0,
-      24
+      2
     ],
     "history_hour_compiled": [
       0,
@@ -106,11 +118,11 @@
       0,
       0,
       0,
+      42,
+      105,
+      43,
       0,
-      0,
-      0,
-      0,
-      24
+      2
     ],
     "history_hour_reused": [
       0,
@@ -133,19 +145,24 @@
       0,
       0,
       0,
-      0,
+      17,
       0,
       0,
       0
     ],
-    "routes_local": 0,
+    "routes_local": 4,
     "routes_cloud": 6,
     "routes_midtier": 0,
     "intent_stats": {
       "general": {
         "requests": 6,
-        "raw_tokens": 24,
-        "compiled_tokens": 24
+        "raw_tokens": 117,
+        "compiled_tokens": 72
+      },
+      "debug": {
+        "requests": 4,
+        "raw_tokens": 182,
+        "compiled_tokens": 120
       }
     },
     "model_stats": {
@@ -153,13 +170,25 @@
         "model": "stepfun/step-3.5-flash:free",
         "provider": "openrouter-step-3.5-flash-cloud",
         "requests": 6,
-        "raw_tokens": 24,
-        "compiled_tokens": 24,
+        "raw_tokens": 117,
+        "compiled_tokens": 72,
         "memory_reused_tokens": 0,
-        "efficiency_score": 0.0,
+        "efficiency_score": 38.46154,
         "sovereign_requests": 0,
         "non_sovereign_requests": 6,
         "sovereign_ratio": 0.0
+      },
+      "mistral:7b-instruct@ollama-mistral-7b-instruct": {
+        "model": "mistral:7b-instruct",
+        "provider": "ollama-mistral-7b-instruct",
+        "requests": 4,
+        "raw_tokens": 182,
+        "compiled_tokens": 120,
+        "memory_reused_tokens": 17,
+        "efficiency_score": 34.065933,
+        "sovereign_requests": 4,
+        "non_sovereign_requests": 0,
+        "sovereign_ratio": 100.0
       }
     },
     "upstream_stats": {
@@ -168,11 +197,11 @@
         "upstream_provider": "unknown-provider",
         "upstream_model": "unknown-model",
         "requests": 3,
-        "last_seen_ts": 1773362882
+        "last_seen_ts": 1773453152
       }
     },
     "last_request": {
-      "client_app": "VS Code Copilot Chat",
+      "client_app": null,
       "upstream_provider": null,
       "upstream_model": null,
       "tenant_id": null,
@@ -181,11 +210,12 @@
       "routed_provider": "openrouter-step-3.5-flash-cloud",
       "routed_model": "stepfun/step-3.5-flash:free",
       "intent": "general",
-      "semantic_cache_hit": false,
-      "semantic_fingerprint": "1520350930825678341",
-      "cache_hit": false,
+      "semantic_cache_hit": true,
+      "semantic_fingerprint": "12638352127299873646",
+      "cache_hit": true,
       "sensitive": false,
-      "ts": 1773362882
+      "ts": 1773458158,
+      "cost_usd": 0.0
     },
     "request_history": [
       {
@@ -195,14 +225,15 @@
         "tenant_id": null,
         "project_id": null,
         "policy_pack": null,
-        "routed_provider": "openrouter-step-3.5-flash-cloud",
-        "routed_model": "stepfun/step-3.5-flash:free",
-        "intent": "general",
+        "routed_provider": "ollama-mistral-7b-instruct",
+        "routed_model": "mistral:7b-instruct",
+        "intent": "debug",
         "semantic_cache_hit": false,
-        "semantic_fingerprint": "7102773152935880159",
+        "semantic_fingerprint": "10337431104576234312",
         "cache_hit": false,
         "sensitive": false,
-        "ts": 1773362808
+        "ts": 1773446128,
+        "cost_usd": 0.0
       },
       {
         "client_app": null,
@@ -215,10 +246,113 @@
         "routed_model": "stepfun/step-3.5-flash:free",
         "intent": "general",
         "semantic_cache_hit": false,
-        "semantic_fingerprint": "4562693701669831746",
+        "semantic_fingerprint": "12638352127299873646",
         "cache_hit": false,
         "sensitive": false,
-        "ts": 1773362808
+        "ts": 1773446535,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": null,
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "ollama-mistral-7b-instruct",
+        "routed_model": "mistral:7b-instruct",
+        "intent": "debug",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "10397056956543200707",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773446544,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": null,
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "ollama-mistral-7b-instruct",
+        "routed_model": "mistral:7b-instruct",
+        "intent": "debug",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "11480683495429080150",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773446723,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": null,
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "ollama-mistral-7b-instruct",
+        "routed_model": "mistral:7b-instruct",
+        "intent": "debug",
+        "semantic_cache_hit": true,
+        "semantic_fingerprint": "11480683495429080150",
+        "cache_hit": true,
+        "sensitive": false,
+        "ts": 1773446723,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "14551990969649365271",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773446944,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "1324878416449660251",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773452429,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "17185478699218872338",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773453152,
+        "cost_usd": 0.0
       },
       {
         "client_app": null,
@@ -230,14 +364,15 @@
         "routed_provider": "openrouter-step-3.5-flash-cloud",
         "routed_model": "stepfun/step-3.5-flash:free",
         "intent": "general",
-        "semantic_cache_hit": false,
-        "semantic_fingerprint": "1912732714797960571",
-        "cache_hit": false,
+        "semantic_cache_hit": true,
+        "semantic_fingerprint": "12638352127299873646",
+        "cache_hit": true,
         "sensitive": false,
-        "ts": 1773362808
+        "ts": 1773457377,
+        "cost_usd": 0.0
       },
       {
-        "client_app": "VS Code Copilot Chat",
+        "client_app": null,
         "upstream_provider": null,
         "upstream_model": null,
         "tenant_id": null,
@@ -246,133 +381,181 @@
         "routed_provider": "openrouter-step-3.5-flash-cloud",
         "routed_model": "stepfun/step-3.5-flash:free",
         "intent": "general",
-        "semantic_cache_hit": false,
-        "semantic_fingerprint": "6963501329150326024",
-        "cache_hit": false,
+        "semantic_cache_hit": true,
+        "semantic_fingerprint": "12638352127299873646",
+        "cache_hit": true,
         "sensitive": false,
-        "ts": 1773362882
-      },
-      {
-        "client_app": "VS Code Copilot Chat",
-        "upstream_provider": null,
-        "upstream_model": null,
-        "tenant_id": null,
-        "project_id": null,
-        "policy_pack": null,
-        "routed_provider": "openrouter-step-3.5-flash-cloud",
-        "routed_model": "stepfun/step-3.5-flash:free",
-        "intent": "general",
-        "semantic_cache_hit": false,
-        "semantic_fingerprint": "10581253336479954718",
-        "cache_hit": false,
-        "sensitive": false,
-        "ts": 1773362882
-      },
-      {
-        "client_app": "VS Code Copilot Chat",
-        "upstream_provider": null,
-        "upstream_model": null,
-        "tenant_id": null,
-        "project_id": null,
-        "policy_pack": null,
-        "routed_provider": "openrouter-step-3.5-flash-cloud",
-        "routed_model": "stepfun/step-3.5-flash:free",
-        "intent": "general",
-        "semantic_cache_hit": false,
-        "semantic_fingerprint": "1520350930825678341",
-        "cache_hit": false,
-        "sensitive": false,
-        "ts": 1773362882
+        "ts": 1773458158,
+        "cost_usd": 0.0
       }
-    ]
+    ],
+    "session_cost_usd": 0.0,
+    "last_request_cost_usd": 0.0
   },
   "sem_cache_entries": [
     {
-      "fingerprint": 7102773152935880159,
+      "fingerprint": 14551990969649365271,
       "intent": "general",
-      "raw_tokens_estimate": 4,
-      "compiled_tokens_estimate": 4,
-      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
-      "compiled_context": "[k:general]|first persistent test request"
+      "raw_tokens_estimate": 46,
+      "compiled_tokens_estimate": 26,
+      "summary": "Intent: general. Reduced estimated context from 46 to 26 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|MCP status check: Is the Distira MCP server correctly connected to VS Code Copilot Chat? ...",
+      "created_at": 1773446944
     },
     {
-      "fingerprint": 1912732714797960571,
-      "intent": "general",
-      "raw_tokens_estimate": 4,
-      "compiled_tokens_estimate": 4,
-      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
-      "compiled_context": "[k:general]|third persistent test request"
+      "fingerprint": 5857413712018688965,
+      "intent": "debug",
+      "raw_tokens_estimate": 130,
+      "compiled_tokens_estimate": 80,
+      "summary": "Intent: debug. Reduced estimated context from 130 to 80 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
+      "compiled_context": "[k:debug]|You are a senior Rust engineer helping diagnose production crashes. Our service panics in production. Logs: ERROR db: connection failed dial tcp 10.0.0.5:5432 retrying 1/3 retrying 2/3 FATAL: all retries exhausted panic: nil pointer dereference goroutine 1 main.(*DBPool).Acquire pool.go:87 Root cause: nil ...",
+      "created_at": 1773446564
     },
     {
-      "fingerprint": 1520350930825678341,
+      "fingerprint": 17185478699218872338,
       "intent": "general",
-      "raw_tokens_estimate": 4,
-      "compiled_tokens_estimate": 4,
-      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
-      "compiled_context": "[k:general]|persistence e2e request gamma"
+      "raw_tokens_estimate": 56,
+      "compiled_tokens_estimate": 29,
+      "summary": "Intent: general. Reduced estimated context from 56 to 29 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|Are there existing production-grade tokenizer tools for Mistral, Llama, Qwen, ...",
+      "created_at": 1773453152
     },
     {
-      "fingerprint": 4562693701669831746,
-      "intent": "general",
-      "raw_tokens_estimate": 4,
-      "compiled_tokens_estimate": 4,
-      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
-      "compiled_context": "[k:general]|second persistent test request"
+      "fingerprint": 11480683495429080150,
+      "intent": "debug",
+      "raw_tokens_estimate": 51,
+      "compiled_tokens_estimate": 31,
+      "summary": "Intent: debug. Reduced estimated context from 51 to 31 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
+      "compiled_context": "[k:debug]|ERROR db: connection failed dial tcp 10.0.0.5:5432 retrying 1/3 retrying 2/3 FATAL all retries exhausted panic ...",
+      "created_at": 1773446723
     },
     {
-      "fingerprint": 6963501329150326024,
-      "intent": "general",
-      "raw_tokens_estimate": 4,
-      "compiled_tokens_estimate": 4,
-      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
-      "compiled_context": "[k:general]|persistence e2e request alpha"
+      "fingerprint": 10397056956543200707,
+      "intent": "debug",
+      "raw_tokens_estimate": 13,
+      "compiled_tokens_estimate": 16,
+      "summary": "Intent: debug. Reduced estimated context from 13 to 16 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
+      "compiled_context": "[k:debug]|Can you show me the exact code fix for pool.go line 87?",
+      "created_at": 1773446544
     },
     {
-      "fingerprint": 10581253336479954718,
+      "fingerprint": 7294020892820348209,
       "intent": "general",
-      "raw_tokens_estimate": 4,
-      "compiled_tokens_estimate": 4,
-      "summary": "Intent: general. Reduced estimated context from 4 to 4 tokens and trimmed low-signal context while preserving the main request.",
-      "compiled_context": "[k:general]|persistence e2e request beta"
+      "raw_tokens_estimate": 14,
+      "compiled_tokens_estimate": 16,
+      "summary": "Intent: general. Reduced estimated context from 14 to 16 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|You are a helpful assistant. What is 2+2? 4. And 3+3?",
+      "created_at": 1773446613
+    },
+    {
+      "fingerprint": 12638352127299873646,
+      "intent": "general",
+      "raw_tokens_estimate": 1,
+      "compiled_tokens_estimate": 1,
+      "summary": "Intent: general. Reduced estimated context from 1 to 1 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "",
+      "created_at": 1773446535
+    },
+    {
+      "fingerprint": 1324878416449660251,
+      "intent": "general",
+      "raw_tokens_estimate": 12,
+      "compiled_tokens_estimate": 14,
+      "summary": "Intent: general. Reduced estimated context from 12 to 14 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|health check - verify ...",
+      "created_at": 1773452429
+    },
+    {
+      "fingerprint": 10337431104576234312,
+      "intent": "debug",
+      "raw_tokens_estimate": 67,
+      "compiled_tokens_estimate": 42,
+      "summary": "Intent: debug. Reduced estimated context from 67 to 42 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
+      "compiled_context": "[k:debug]|2024-01-15 ERROR db: connection failed dial tcp 10.0.0.5:5432 connect: connection refused retrying 1/3 retrying 2/3 FATAL: all retries exhausted panic: nil ...",
+      "created_at": 1773446128
+    },
+    {
+      "fingerprint": 13204829732094483989,
+      "intent": "general",
+      "raw_tokens_estimate": 16,
+      "compiled_tokens_estimate": 18,
+      "summary": "Intent: general. Reduced estimated context from 16 to 18 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|Reply in one word only. Capital of France? Paris. Population?",
+      "created_at": 1773446655
     }
   ],
   "chat_cache": {},
   "context_blocks": [
     {
-      "id": "1520350930825678341",
+      "id": "10337431104576234312",
       "stability": 1.0,
-      "content": "[k:general]|persistence e2e request gamma"
+      "content": "[k:debug]|2024-01-15 ERROR db: connection failed dial tcp 10.0.0.5:5432 connect: connection refused retrying 1/3 retrying 2/3 FATAL: all retries exhausted panic: nil ..."
     },
     {
-      "id": "4562693701669831746",
+      "id": "1324878416449660251",
       "stability": 1.0,
-      "content": "[k:general]|second persistent test request"
+      "content": "[k:general]|health check - verify ..."
     },
     {
-      "id": "1912732714797960571",
+      "id": "7294020892820348209",
       "stability": 1.0,
-      "content": "[k:general]|third persistent test request"
+      "content": "[k:general]|You are a helpful assistant. What is 2+2? 4. And 3+3?"
     },
     {
-      "id": "6963501329150326024",
+      "id": "14551990969649365271",
       "stability": 1.0,
-      "content": "[k:general]|persistence e2e request alpha"
+      "content": "[k:general]|MCP status check: Is the Distira MCP server correctly connected to VS Code Copilot Chat? ..."
     },
     {
-      "id": "10581253336479954718",
+      "id": "10397056956543200707",
       "stability": 1.0,
-      "content": "[k:general]|persistence e2e request beta"
+      "content": "[k:debug]|Can you show me the exact code fix for pool.go line 87?"
     },
     {
-      "id": "7102773152935880159",
+      "id": "12638352127299873646",
       "stability": 1.0,
-      "content": "[k:general]|first persistent test request"
+      "content": ""
+    },
+    {
+      "id": "11480683495429080150",
+      "stability": 1.0,
+      "content": "[k:debug]|ERROR db: connection failed dial tcp 10.0.0.5:5432 retrying 1/3 retrying 2/3 FATAL all retries exhausted panic ..."
+    },
+    {
+      "id": "5857413712018688965",
+      "stability": 1.0,
+      "content": "[k:debug]|You are a senior Rust engineer helping diagnose production crashes. Our service panics in production. Logs: ERROR db: connection failed dial tcp 10.0.0.5:5432 retrying 1/3 retrying 2/3 FATAL: all retries exhausted panic: nil pointer dereference goroutine 1 main.(*DBPool).Acquire pool.go:87 Root cause: nil ..."
+    },
+    {
+      "id": "13204829732094483989",
+      "stability": 1.0,
+      "content": "[k:general]|Reply in one word only. Capital of France? Paris. Population?"
+    },
+    {
+      "id": "17185478699218872338",
+      "stability": 1.0,
+      "content": "[k:general]|Are there existing production-grade tokenizer tools for Mistral, Llama, Qwen, ..."
     }
   ],
   "hour_buckets": {
-    "1773360000": [
-      24,
-      24,
+    "1773442800": [
+      67,
+      42,
+      0
+    ],
+    "1773446400": [
+      162,
+      105,
+      17
+    ],
+    "1773457200": [
+      2,
+      2,
+      0
+    ],
+    "1773450000": [
+      68,
+      43,
       0
     ]
   }

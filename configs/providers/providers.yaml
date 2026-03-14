@@ -2,20 +2,37 @@
 # DISTIRA provider configuration
 #
 # Each provider defines a connection to an LLM endpoint.
-# For Ollama, declare one entry per model you want to use.
-# DISTIRA routes to the right model based on intent + policy.
+# DISTIRA supports any OpenAI-compatible endpoint:
+#   Ollama · LM Studio · OpenWebUI · Mistral · OpenAI · Anthropic · Google …
 #
-# Supported types: openai-compatible, mistral, google (future)
-# The base_url must point to the OpenAI-compatible root (ending in /v1).
+# Supported types: openai-compatible, mistral
+# The base_url must point to the OpenAI-compatible root (NOT ending in /chat).
+#
+# cost_per_1k_input_tokens / cost_per_1k_output_tokens  (USD)
+#   On-prem: effectively $0 (set to 0.0 — electricity cost only).
+#   Cloud:   use the provider's public pricing page.
 
 providers:
-  # ── Local Ollama models ──────────────────────────────
+  # ── Ollama (on-prem, http://localhost:11434/v1) ──────────────────────────────
+  # Install: https://ollama.com  |  pull models with: ollama pull <model>
+
   ollama-llama3:
     type: openai-compatible
     base_url: http://localhost:11434/v1
     model: llama3:latest
     deployment: on-prem
-    description: Llama 3 — general tasks, summarization
+    description: Llama 3 8B — general tasks, summarization
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
+
+  ollama-llama3.3:
+    type: openai-compatible
+    base_url: http://localhost:11434/v1
+    model: llama3.3:latest
+    deployment: on-prem
+    description: "Llama 3.3 70B — best open-source general model (Meta, 2025). ollama pull llama3.3"
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
   ollama-qwen2.5-coder:
     type: openai-compatible
@@ -23,6 +40,17 @@ providers:
     model: qwen2.5-coder:7b
     deployment: on-prem
     description: Qwen 2.5 Coder 7B — code generation, review
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
+
+  # ollama-qwen3:
+  #   type: openai-compatible
+  #   base_url: http://localhost:11434/v1
+  #   model: qwen3:8b
+  #   deployment: on-prem
+  #   description: "Qwen 3 8B — Alibaba 2025, MoE hybrid, strong reasoning. ollama pull qwen3:8b"
+  #   cost_per_1k_input_tokens: 0.0
+  #   cost_per_1k_output_tokens: 0.0
 
   ollama-mistral-7b-instruct:
     type: openai-compatible
@@ -30,6 +58,8 @@ providers:
     model: mistral:7b-instruct
     deployment: on-prem
     description: Mistral 7B local — debug, analysis
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
   ollama-deepseek-ocr:
     type: openai-compatible
@@ -37,8 +67,60 @@ providers:
     model: deepseek-ocr:3b
     deployment: on-prem
     description: DeepSeek OCR 3B — optical character recognition
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
-  # ── Cloud providers (optional) ──────────────────────
+  # ollama-glm4:
+  #   type: openai-compatible
+  #   base_url: http://localhost:11434/v1
+  #   model: glm4:9b
+  #   deployment: on-prem
+  #   description: "ZhipuAI GLM-4 9B — strong on Chinese + code. ollama pull glm4:9b"
+  #   cost_per_1k_input_tokens: 0.0
+  #   cost_per_1k_output_tokens: 0.0
+
+  # ── vLLM (on-prem, http://localhost:8000/v1) ─────────────────────────────────
+  # Install: pip install vllm  |  start: python -m vllm.entrypoints.openai.api_server --model <hf-model>
+  # vLLM exposes a full OpenAI-compatible API — DISTIRA connects transparently,
+  # including streaming (SSE).  No api_key needed for local deployments.
+  #
+  # vllm-default:
+  #   type: openai-compatible
+  #   base_url: http://localhost:8000/v1
+  #   model: meta-llama/Llama-3.1-8B-Instruct  # replace with your loaded model
+  #   deployment: on-prem
+  #   description: vLLM local server — any HuggingFace model with PagedAttention
+  #   cost_per_1k_input_tokens: 0.0
+  #   cost_per_1k_output_tokens: 0.0
+
+  # ── LM Studio (on-prem, http://localhost:1234/v1) ────────────────────────────
+  # Install: https://lmstudio.ai  |  load any GGUF model, enable the local server
+  # LM Studio exposes a full OpenAI-compatible API — DISTIRA connects transparently.
+  #
+  # lmstudio-default:
+  #   type: openai-compatible
+  #   base_url: http://localhost:1234/v1
+  #   model: local-model          # replaced by whatever model is loaded in LM Studio
+  #   deployment: on-prem
+  #   description: LM Studio local server — any GGUF model (llama3, qwen3, gemma3, phi4 …)
+  #   cost_per_1k_input_tokens: 0.0
+  #   cost_per_1k_output_tokens: 0.0
+
+  # ── OpenWebUI (on-prem, http://localhost:3000) ───────────────────────────────
+  # Install: https://openwebui.com  |  OpenWebUI proxies Ollama and exposes its
+  # own OpenAI-compatible API at /api — DISTIRA can target it directly.
+  #
+  # openwebui-default:
+  #   type: openai-compatible
+  #   base_url: http://localhost:3000/api
+  #   model: llama3:latest        # or whatever model is active in OpenWebUI
+  #   deployment: on-prem
+  #   description: OpenWebUI proxy — targets its configured Ollama/backend model
+  #   cost_per_1k_input_tokens: 0.0
+  #   cost_per_1k_output_tokens: 0.0
+
+  # ── Cloud providers (optional — uncomment + set API key env var) ─────────────
+
   mistral-ocr-2512-cloud:
     type: mistral
     base_url: https://api.mistral.ai/v1
@@ -46,6 +128,8 @@ providers:
     deployment: cloud
     api_key_env: MISTRAL_API_KEY
     description: Mistral OCR 2512 cloud endpoint
+    cost_per_1k_input_tokens: 0.001
+    cost_per_1k_output_tokens: 0.001
 
   openrouter-step-3.5-flash-cloud:
     type: openai-compatible
@@ -54,6 +138,8 @@ providers:
     deployment: cloud
     api_key_env: OPENROUTER_API_KEY
     description: StepFun 3.5 Flash free cloud
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
   openrouter-mistral-small-3.1-24b-instruct-cloud:
     type: openai-compatible
@@ -61,12 +147,139 @@ providers:
     model: mistralai/mistral-small-3.1-24b-instruct:free
     deployment: cloud
     api_key_env: OPENROUTER_API_KEY
-    description: Mistral Small 3.1 24B Instruct free cloud
+    description: Mistral Small 3.1 24B Instruct free cloud — summarize, translate
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
-  #openai-cloud:
-  #  type: openai-compatible
-  #  base_url: https://api.openai.com/v1
-  #  model: gpt-4o-mini
-  #  deployment: cloud
-  #  api_key_env: OPENAI_API_KEY
-  #  description: OpenAI GPT-4o-mini cloud
+  # ── OpenAI (cloud) ───────────────────────────────────────────────────────────
+  # openai-gpt4o:
+  #   type: openai-compatible
+  #   base_url: https://api.openai.com/v1
+  #   model: gpt-4o
+  #   deployment: cloud
+  #   api_key_env: OPENAI_API_KEY
+  #   description: OpenAI GPT-4o — o200k_base, 128k context
+  #   cost_per_1k_input_tokens: 2.50
+  #   cost_per_1k_output_tokens: 10.00
+
+  # openai-gpt5:
+  #   type: openai-compatible
+  #   base_url: https://api.openai.com/v1
+  #   model: gpt-5
+  #   deployment: cloud
+  #   api_key_env: OPENAI_API_KEY
+  #   description: OpenAI GPT-5 — o200k_base
+  #   cost_per_1k_input_tokens: 0.0    # update when pricing is published
+  #   cost_per_1k_output_tokens: 0.0
+
+  # ── Anthropic Claude (cloud) ─────────────────────────────────────────────────
+  # All Claude models share the same /v1/messages endpoint (OpenAI-compatible).
+  # Set ANTHROPIC_API_KEY in your environment to activate.
+  #
+  # anthropic-claude-sonnet-4-5:
+  #   type: openai-compatible
+  #   base_url: https://api.anthropic.com/v1
+  #   model: claude-sonnet-4-5
+  #   deployment: cloud
+  #   api_key_env: ANTHROPIC_API_KEY
+  #   description: Anthropic Claude Sonnet 4.5 — fast, cost-effective reasoning
+  #   cost_per_1k_input_tokens: 3.0
+  #   cost_per_1k_output_tokens: 15.0
+
+  # anthropic-claude-sonnet-4-6:
+  #   type: openai-compatible
+  #   base_url: https://api.anthropic.com/v1
+  #   model: claude-sonnet-4-6
+  #   deployment: cloud
+  #   api_key_env: ANTHROPIC_API_KEY
+  #   description: Anthropic Claude Sonnet 4.6 — latest reasoning + code
+  #   cost_per_1k_input_tokens: 3.0
+  #   cost_per_1k_output_tokens: 15.0
+
+  # anthropic-claude-opus-4-5:
+  #   type: openai-compatible
+  #   base_url: https://api.anthropic.com/v1
+  #   model: claude-opus-4-5
+  #   deployment: cloud
+  #   api_key_env: ANTHROPIC_API_KEY
+  #   description: Anthropic Claude Opus 4.5 — most capable, long context
+  #   cost_per_1k_input_tokens: 15.0
+  #   cost_per_1k_output_tokens: 75.0
+
+  # anthropic-claude-3-7-sonnet:
+  #   type: openai-compatible
+  #   base_url: https://api.anthropic.com/v1
+  #   model: claude-3-7-sonnet-20250219
+  #   deployment: cloud
+  #   api_key_env: ANTHROPIC_API_KEY
+  #   description: Anthropic Claude 3.7 Sonnet — extended thinking, code
+  #   cost_per_1k_input_tokens: 3.0
+  #   cost_per_1k_output_tokens: 15.0
+
+  # ── Google Gemini (cloud) ────────────────────────────────────────────────────
+  # Google exposes an OpenAI-compatible endpoint for all Gemini models.
+  # Set GOOGLE_API_KEY in your environment to activate.
+  #
+  # google-gemini-2-flash:
+  #   type: openai-compatible
+  #   base_url: https://generativelanguage.googleapis.com/v1beta/openai
+  #   model: gemini-2.0-flash
+  #   deployment: cloud
+  #   api_key_env: GOOGLE_API_KEY
+  #   description: Gemini 2.0 Flash — fast, multimodal, 1M context
+  #   cost_per_1k_input_tokens: 0.075
+  #   cost_per_1k_output_tokens: 0.30
+
+  # google-gemini-2-5-pro:
+  #   type: openai-compatible
+  #   base_url: https://generativelanguage.googleapis.com/v1beta/openai
+  #   model: gemini-2.5-pro-preview-03-25
+  #   deployment: cloud
+  #   api_key_env: GOOGLE_API_KEY
+  #   description: Gemini 2.5 Pro — best reasoning, 1M context, multimodal
+  #   cost_per_1k_input_tokens: 1.25
+  #   cost_per_1k_output_tokens: 10.00
+
+  # google-gemini-2-5-flash:
+  #   type: openai-compatible
+  #   base_url: https://generativelanguage.googleapis.com/v1beta/openai
+  #   model: gemini-2.5-flash-preview-04-17
+  #   deployment: cloud
+  #   api_key_env: GOOGLE_API_KEY
+  #   description: Gemini 2.5 Flash — fast reasoning with thinking mode, cost-effective
+  #   cost_per_1k_input_tokens: 0.075
+  #   cost_per_1k_output_tokens: 0.30
+
+  # ── ZhipuAI GLM (cloud) ──────────────────────────────────────────────────────
+  # ZhipuAI exposes an OpenAI-compatible API. Set ZHIPU_API_KEY to activate.
+  #
+  # zhipu-glm4-cloud:
+  #   type: openai-compatible
+  #   base_url: https://open.bigmodel.cn/api/paas/v4
+  #   model: glm-4
+  #   deployment: cloud
+  #   api_key_env: ZHIPU_API_KEY
+  #   description: ZhipuAI GLM-4 — strong on Chinese, code, long context
+  #   cost_per_1k_input_tokens: 0.10
+  #   cost_per_1k_output_tokens: 0.10
+
+  # zhipu-glm-z1-cloud:
+  #   type: openai-compatible
+  #   base_url: https://open.bigmodel.cn/api/paas/v4
+  #   model: glm-z1-flash
+  #   deployment: cloud
+  #   api_key_env: ZHIPU_API_KEY
+  #   description: ZhipuAI GLM-Z1 Flash — fast reasoning model
+  #   cost_per_1k_input_tokens: 0.0
+  #   cost_per_1k_output_tokens: 0.0
+
+  # ── Qwen via Alibaba Cloud DashScope (cloud) ─────────────────────────────────
+  # DashScope exposes an OpenAI-compatible API. Set DASHSCOPE_API_KEY to activate.
+  #
+  # dashscope-qwen3-235b:
+  #   type: openai-compatible
+  #   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  #   model: qwen3-235b-a22b
+  #   deployment: cloud
+  #   api_key_env: DASHSCOPE_API_KEY
+  #   description: Qwen 3 235B A22B (MoE) — top open-weight reasoning model (cloud)

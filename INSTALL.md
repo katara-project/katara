@@ -324,7 +324,7 @@ cargo run -p core
 You will see:
 
 ```md
-DISTIRA v7.7.1 — Sovereign AI Context OS
+DISTIRA vx.y.z — Sovereign AI Context OS
 ────────────────────────────────────────
   Config loaded from configs/
     provider: ollama-llama3

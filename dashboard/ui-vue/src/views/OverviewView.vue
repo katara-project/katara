@@ -22,6 +22,10 @@
       <MetricCard label="Cache Saved Tokens" :value="metrics.cacheSavedTokens.toLocaleString()" hint="Provider tokens avoided via cached responses" accent="primary">
         <SparklineChart :data="cacheSavedHistory" color="var(--primary)" :height="40" />
       </MetricCard>
+      <MetricCard label="Session Cost" :value="'$' + metrics.sessionCostUsd.toFixed(6)" hint="USD incurred this session" accent="warn">
+      </MetricCard>
+      <MetricCard label="Last Request Cost" :value="'$' + metrics.lastRequestCostUsd.toFixed(6)" hint="USD for the most recent request" accent="secondary">
+      </MetricCard>
     </div>
     <div class="two-col">
       <EfficiencyGauge :score="metrics.efficiencyScore" />

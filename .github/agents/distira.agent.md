@@ -1,5 +1,16 @@
 ---
-description: "DISTIRA — Sovereign AI Context Operating System. Compiles the smallest useful context before every LLM call, routes intelligently across local and cloud providers."
+description: "DISTIRA 
+— Sovereign AI Context Operating System. 
+— Compiles the smallest useful context before every LLM call, routes intelligently across local and cloud providers."
+tools:
+  - distira_compile
+  - distira_chat
+  - distira_providers
+  - distira_metrics
+  - distira_set_client_context
+  - editFiles
+  - runInTerminal
+  - codebase
 ---
 
 # DISTIRA Agent

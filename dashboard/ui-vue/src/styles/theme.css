@@ -118,6 +118,14 @@ a {
   flex-shrink: 0;
 }
 
+
+.brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: 10px;
+}
 .brand-wrap h1 { margin: 0; font-size: 1.2rem; }
 .brand-sub { margin: 0; font-size: 0.75rem; color: var(--muted); }
 

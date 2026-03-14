@@ -1,7 +1,8 @@
 use axum::{
     body::{Body, Bytes},
     extract::State,
-    http::{header, HeaderValue, Response, StatusCode},
+    http::{header, HeaderValue, Request, Response, StatusCode},
+    middleware::{self, Next},
     response::sse::{Event, KeepAlive, Sse},
     response::IntoResponse,
     routing::{get, post},
@@ -68,6 +69,9 @@ struct RequestLineage {
     cache_hit: bool,
     sensitive: bool,
     ts: u64,
+    /// Estimated cost of this request in USD (0.0 for on-prem).
+    #[serde(default)]
+    cost_usd: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +94,21 @@ struct WorkspaceContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct WorkspaceContextFile {
     workspace: WorkspaceContext,
+}
+
+/// Runtime policy configuration loaded from `configs/policies/policies.yaml`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct PolicyConfig {
+    #[serde(default)]
+    sensitive_data: Option<String>,
+    #[serde(default)]
+    max_tokens_per_request: Option<usize>,
+    #[serde(default)]
+    fallback_provider: Option<String>,
+    #[serde(default)]
+    data_residency: Option<String>,
+    #[serde(default)]
+    pii_masking: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,6 +138,12 @@ struct MetricsSnapshot {
     upstream_stats: std::collections::HashMap<String, UpstreamStats>,
     last_request: Option<RequestLineage>,
     request_history: Vec<RequestLineage>,
+    /// Cumulative session cost in USD across all requests.
+    #[serde(default)]
+    session_cost_usd: f64,
+    /// Cost of the most recent request in USD.
+    #[serde(default)]
+    last_request_cost_usd: f64,
 }
 
 #[derive(Debug)]
@@ -162,6 +187,8 @@ struct RecordEntry {
     sensitive: bool,
     upstream: UpstreamIdentity,
     scope: WorkspaceScope,
+    /// Estimated cost of this request in USD.
+    cost_usd: f64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -210,6 +237,8 @@ impl MetricsCollector {
                 upstream_stats: std::collections::HashMap::new(),
                 last_request: None,
                 request_history: Vec::with_capacity(200),
+                session_cost_usd: 0.0,
+                last_request_cost_usd: 0.0,
             },
             sem_cache: cache::SemanticCache::new(),
             chat_cache: HashMap::new(),
@@ -243,6 +272,7 @@ impl MetricsCollector {
             sensitive,
             upstream,
             scope,
+            cost_usd,
         } = e;
         let s = &mut self.snapshot;
         let ts = now_epoch();
@@ -406,6 +436,9 @@ impl MetricsCollector {
             upstream_entry.last_seen_ts = ts;
         }
 
+        s.session_cost_usd += cost_usd;
+        s.last_request_cost_usd = cost_usd;
+
         let lineage = RequestLineage {
             client_app: upstream.client_app,
             upstream_provider: upstream.provider,
@@ -421,6 +454,7 @@ impl MetricsCollector {
             cache_hit,
             sensitive,
             ts,
+            cost_usd,
         };
 
         s.last_request = Some(lineage.clone());
@@ -505,6 +539,7 @@ struct AppState {
     collector: Mutex<MetricsCollector>,
     router_config: router::RouterConfig,
     workspace_context: WorkspaceContext,
+    policies: PolicyConfig,
 }
 
 type SharedState = Arc<AppState>;
@@ -530,6 +565,10 @@ fn cache_entry_from_compile_result(
         compiled_tokens_estimate: result.compiled_tokens_estimate,
         summary: result.summary.clone(),
         compiled_context: result.compiled_context.clone(),
+        created_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
     }
 }
 
@@ -684,6 +723,26 @@ fn load_workspace_context() -> WorkspaceContext {
         project_id: None,
         policy_pack: None,
     }
+}
+
+fn policies_path() -> Option<PathBuf> {
+    let candidates = [
+        PathBuf::from("configs/policies/policies.yaml"),
+        PathBuf::from("../configs/policies/policies.yaml"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../configs/policies/policies.yaml"),
+    ];
+    candidates.into_iter().find(|path| path.exists())
+}
+
+fn load_policies() -> PolicyConfig {
+    if let Some(path) = policies_path() {
+        if let Ok(raw) = std::fs::read_to_string(&path) {
+            if let Ok(cfg) = serde_yaml::from_str::<PolicyConfig>(&raw) {
+                return cfg;
+            }
+        }
+    }
+    PolicyConfig::default()
 }
 
 fn resolve_workspace_scope(
@@ -1073,8 +1132,29 @@ async fn compile(
     let raw = payload.context.as_deref().unwrap_or("");
     let sensitive = payload.sensitive.unwrap_or(false);
 
+    // V9.3 — PII masking before compilation.
+    let pii_mask_enabled = sensitive
+        || state.policies.pii_masking.unwrap_or(false)
+        || state.policies.sensitive_data.as_deref() == Some("local_only");
+    let masked = if pii_mask_enabled {
+        compiler::mask_pii(raw)
+    } else {
+        raw.to_string()
+    };
+    // V9.3 — max_tokens_per_request enforcement.
+    let context_input = if let Some(max_tok) = state.policies.max_tokens_per_request {
+        let char_budget = max_tok * 4;
+        if masked.len() > char_budget {
+            masked[..char_budget].to_string()
+        } else {
+            masked
+        }
+    } else {
+        masked
+    };
+
     let mut collector = state.collector.lock().unwrap();
-    let (fp, result, cache_hit) = compile_with_semantic_cache(&mut collector, raw);
+    let (fp, result, cache_hit) = compile_with_semantic_cache(&mut collector, &context_input);
     let mem = if cache_hit {
         collector
             .context_store
@@ -1131,6 +1211,11 @@ async fn compile(
         sensitive,
         upstream: upstream.clone(),
         scope: scope.clone(),
+        cost_usd: state.router_config.cost_estimate_usd(
+            &route.provider,
+            result.compiled_tokens_estimate,
+            0,
+        ),
     });
     drop(collector);
 
@@ -1153,7 +1238,12 @@ async fn compile(
         "project_id": scope.project_id,
         "policy_pack": scope.policy_pack,
         "routing_reason": route.reason,
-        "token_avoidance_ratio": efficiency.token_avoidance_ratio
+        "token_avoidance_ratio": efficiency.token_avoidance_ratio,
+        "cost_usd": state.router_config.cost_estimate_usd(
+            &route.provider,
+            result.compiled_tokens_estimate,
+            0,
+        )
     }))
 }
 
@@ -1179,37 +1269,111 @@ async fn chat_completions(
     State(state): State<SharedState>,
     Json(payload): Json<ChatRequest>,
 ) -> Response<Body> {
-    let raw = extract_latest_user_text(&payload.messages);
     let sensitive = payload.sensitive.unwrap_or(false);
 
-    // 1. Full DISTIRA pipeline
-    let compile_input = if raw.trim().is_empty() {
-        extract_conversation_text(&payload.messages)
+    // ── 1. Full context: raw measurement + intent detection ──────────────────
+    // Use the FULL conversation text so intent detection and the semantic
+    // cache key are derived from the entire picture, and raw_tokens_estimate
+    // reflects the true context size — not just the latest user turn.
+    let full_context = extract_conversation_text(&payload.messages);
+    let raw_compile_input = if full_context.trim().is_empty() {
+        extract_latest_user_text(&payload.messages)
     } else {
-        raw.clone()
+        full_context.clone()
     };
+
+    // V9.3 — PII masking: apply before compilation when policy or sensitive flag is set.
+    let pii_mask_enabled = sensitive
+        || state.policies.pii_masking.unwrap_or(false)
+        || state.policies.sensitive_data.as_deref() == Some("local_only");
+    let pii_masked = if pii_mask_enabled {
+        compiler::mask_pii(&raw_compile_input)
+    } else {
+        raw_compile_input.clone()
+    };
+
+    // V9.3 — max_tokens_per_request enforcement: truncate to budget before compile.
+    let compile_input = if let Some(max_tok) = state.policies.max_tokens_per_request {
+        let char_budget = max_tok * 4; // ~4 chars/token
+        if pii_masked.len() > char_budget {
+            pii_masked[..char_budget].to_string()
+        } else {
+            pii_masked
+        }
+    } else {
+        pii_masked
+    };
+
     let (semantic_fp, result, semantic_cache_hit) = {
         let mut collector = state.collector.lock().unwrap();
         compile_with_semantic_cache(&mut collector, &compile_input)
     };
-    let compiled_prompt = if result.compiled_context.trim().is_empty() {
-        compile_input.clone()
+
+    // ── 2. Compile latest user message for clean LLM injection ───────────────
+    // For multi-turn conversations we compile only the latest user turn so
+    // the dialogue structure is preserved for the upstream LLM.  For
+    // single-turn requests we inject the full compiled context directly.
+    let latest_user = extract_latest_user_text(&payload.messages);
+    let injection_content = if payload.messages.len() <= 1 || latest_user.trim().is_empty() {
+        // Single-turn: inject the full compiled context
+        if result.compiled_context.trim().is_empty() {
+            compile_input.clone()
+        } else {
+            result.compiled_context.clone()
+        }
     } else {
-        result.compiled_context.clone()
+        // Multi-turn: compile just the latest user message so the LLM
+        // receives a proper Q&A structure with a compressed question.
+        let last_compiled = compiler::compile_context(&latest_user);
+        if last_compiled.compiled_context.trim().is_empty() {
+            latest_user.clone()
+        } else {
+            last_compiled.compiled_context
+        }
     };
+
+    // ── 3. Build forwarded messages ──────────────────────────────────────────────
     let compiled_messages = if payload.messages.is_empty() {
-        build_forward_messages(&payload.messages, &compiled_prompt)
+        build_forward_messages(&payload.messages, &injection_content)
     } else {
-        apply_compiled_user_message(&payload.messages, &compiled_prompt)
+        apply_compiled_user_message(&payload.messages, &injection_content)
     };
     // Compress history when conversation has grown beyond MAX_FULL_TURNS
     let forwarded_messages = compress_conversation_history(&compiled_messages);
+
+    // Determine route early so compiled_total uses model-aware token counting.
+    let route = state
+        .router_config
+        .choose_provider(&result.intent, sensitive);
+    let model = payload.model.clone().unwrap_or_else(|| route.model.clone());
+
+    // ── 4. Measure COMPILED = actual forwarded token count ────────────────────
+    // Honest measure: what DISTIRA actually sends to the LLM after history
+    // compression and per-turn compilation.  The gap vs raw_tokens_estimate
+    // is the real savings delivered by the full pipeline.
+    // V9.4: model-aware tokenizer calibrated for provider family (Llama3/GPT-4/Qwen).
+    let forwarded_text = extract_conversation_text(&forwarded_messages);
+    let token_family = tokenizer::family_for_provider(&route.provider);
+    let compiled_total = tokenizer::count_for(&forwarded_text, token_family).max(1);
+
     let fp = build_chat_cache_key(&forwarded_messages, &payload.extra_body);
+
+    // ── Memory Lensing: delta-forwarding (V9.0) ──────────────────────────────
+    // Exact semantic cache hit → full compiled block reused from ContextStore.
+    // Multi-turn conversation → prior turns are already resident in the upstream
+    // LLM's context window; only the latest user message is genuinely new.
+    // Single-turn or empty prior context → zero reuse, everything is new.
     let mem = if semantic_cache_hit {
         let collector = state.collector.lock().unwrap();
         collector
             .context_store
             .compute_reuse(semantic_fp, result.raw_tokens_estimate)
+    } else if payload.messages.len() > 1 && !latest_user.trim().is_empty() {
+        let latest_user_tokens = compiler::estimate_tokens(&latest_user);
+        let prior_tokens = result
+            .raw_tokens_estimate
+            .saturating_sub(latest_user_tokens);
+        memory::compute_delta(prior_tokens, latest_user_tokens)
     } else {
         memory::MemorySummary {
             reused_tokens: 0,
@@ -1217,10 +1381,6 @@ async fn chat_completions(
             context_reuse_ratio: 0.0,
         }
     };
-    let route = state
-        .router_config
-        .choose_provider(&result.intent, sensitive);
-    let model = payload.model.clone().unwrap_or_else(|| route.model.clone());
     let stream = payload.stream.unwrap_or(false);
     let runtime_context = read_runtime_client_context();
     let scope = resolve_workspace_scope(
@@ -1246,7 +1406,7 @@ async fn chat_completions(
 
     let efficiency = metrics::compute(
         result.raw_tokens_estimate,
-        result.compiled_tokens_estimate,
+        compiled_total,
         mem.reused_tokens,
     );
 
@@ -1261,7 +1421,7 @@ async fn chat_completions(
 
             collector.record(RecordEntry {
                 raw: result.raw_tokens_estimate,
-                compiled: result.compiled_tokens_estimate,
+                compiled: compiled_total,
                 reused: mem.reused_tokens,
                 provider: route.provider.clone(),
                 model: model.clone(),
@@ -1273,6 +1433,7 @@ async fn chat_completions(
                 sensitive,
                 upstream: upstream.clone(),
                 scope: scope.clone(),
+                cost_usd: 0.0, // cache hit — no provider call
             });
 
             if stream {
@@ -1300,7 +1461,7 @@ async fn chat_completions(
                     "model": model,
                     "intent": result.intent,
                     "raw_tokens": result.raw_tokens_estimate,
-                    "compiled_tokens": result.compiled_tokens_estimate,
+                    "compiled_tokens": compiled_total,
                     "client_app": upstream.client_app,
                     "upstream_provider": upstream.provider,
                     "upstream_model": upstream.model,
@@ -1341,7 +1502,7 @@ async fn chat_completions(
                     let mut collector = state.collector.lock().unwrap();
                     collector.record(RecordEntry {
                         raw: result.raw_tokens_estimate,
-                        compiled: result.compiled_tokens_estimate,
+                        compiled: compiled_total,
                         reused: mem.reused_tokens,
                         provider: route.provider.clone(),
                         model: model.clone(),
@@ -1353,6 +1514,11 @@ async fn chat_completions(
                         sensitive,
                         upstream: upstream.clone(),
                         scope: scope.clone(),
+                        cost_usd: state.router_config.cost_estimate_usd(
+                            &route.provider,
+                            compiled_total,
+                            0,
+                        ),
                     });
                 }
 
@@ -1404,6 +1570,10 @@ async fn chat_completions(
                     }
 
                     if !cached_content.is_empty() {
+                        // V9.5: decode streamed content before caching so that
+                        // cache replays serve clean, artifact-free output.
+                        let decoded = tokenizer::decode_for(&cached_content, token_family);
+                        cached_content = decoded;
                         if let Ok(mut collector) = state_for_stream.collector.lock() {
                             collector.chat_cache.insert(
                                 cache_key_for_stream,
@@ -1441,7 +1611,7 @@ async fn chat_completions(
                         "provider": route.provider,
                         "model": model,
                         "intent": result.intent,
-                        "compiled_tokens": result.compiled_tokens_estimate,
+                        "compiled_tokens": compiled_total,
                         "client_app": upstream.client_app,
                         "upstream_provider": upstream.provider,
                         "upstream_model": upstream.model,
@@ -1464,12 +1634,15 @@ async fn chat_completions(
     .await
     {
         Ok(fwd) => {
+            // V9.5: decode LLM output to fix BPE reconstruction artifacts
+            // (stray spaces before punctuation, CRLF, double spaces, CJK spacing).
+            let decoded_content = tokenizer::decode_for(&fwd.content, token_family);
             {
                 let mut collector = state.collector.lock().unwrap();
                 collector.chat_cache.insert(
                     cache_key,
                     CachedChatResponse {
-                        content: fwd.content.clone(),
+                        content: decoded_content.clone(),
                         model: fwd.model.clone(),
                         prompt_tokens: fwd.prompt_tokens,
                         completion_tokens: fwd.completion_tokens,
@@ -1477,7 +1650,7 @@ async fn chat_completions(
                 );
                 collector.record(RecordEntry {
                     raw: result.raw_tokens_estimate,
-                    compiled: result.compiled_tokens_estimate,
+                    compiled: compiled_total,
                     reused: mem.reused_tokens,
                     provider: route.provider.clone(),
                     model: model.clone(),
@@ -1489,6 +1662,11 @@ async fn chat_completions(
                     sensitive,
                     upstream: upstream.clone(),
                     scope: scope.clone(),
+                    cost_usd: state.router_config.cost_estimate_usd(
+                        &route.provider,
+                        compiled_total,
+                        fwd.prompt_tokens.unwrap_or(0) + fwd.completion_tokens.unwrap_or(0),
+                    ),
                 });
             }
 
@@ -1501,7 +1679,7 @@ async fn chat_completions(
                     "index": 0,
                     "message": {
                         "role": "assistant",
-                        "content": fwd.content
+                        "content": decoded_content
                     },
                     "finish_reason": "stop"
                 }],
@@ -1514,7 +1692,7 @@ async fn chat_completions(
                     "model": model,
                     "intent": result.intent,
                     "raw_tokens": result.raw_tokens_estimate,
-                    "compiled_tokens": result.compiled_tokens_estimate,
+                    "compiled_tokens": compiled_total,
                     "client_app": upstream.client_app,
                     "upstream_provider": upstream.provider,
                     "upstream_model": upstream.model,
@@ -1539,7 +1717,7 @@ async fn chat_completions(
                     "provider": route.provider,
                     "model": model,
                     "intent": result.intent,
-                    "compiled_tokens": result.compiled_tokens_estimate,
+                    "compiled_tokens": compiled_total,
                     "semantic_cache_hit": semantic_cache_hit,
                     "semantic_fingerprint": semantic_fp.to_string()
                 }
@@ -1746,6 +1924,7 @@ mod tests {
                 semantic_fingerprint: Some("fp-1".into()),
                 cache_hit: false,
                 sensitive: false,
+                cost_usd: 0.0,
                 ts: 100,
             },
             RequestLineage {
@@ -1762,6 +1941,7 @@ mod tests {
                 semantic_fingerprint: Some("fp-2".into()),
                 cache_hit: false,
                 sensitive: false,
+                cost_usd: 0.0,
                 ts: 200,
             },
             RequestLineage {
@@ -1778,6 +1958,7 @@ mod tests {
                 semantic_fingerprint: Some("fp-3".into()),
                 cache_hit: false,
                 sensitive: false,
+                cost_usd: 0.0,
                 ts: 300,
             },
         ];
@@ -1809,6 +1990,7 @@ mod tests {
             sensitive: false,
             upstream: UpstreamIdentity::default(),
             scope: WorkspaceScope::default(),
+            cost_usd: 0.0,
         });
 
         let mut restored = MetricsCollector::new();
@@ -1838,15 +2020,42 @@ async fn metrics_stream(
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
     let interval = tokio::time::interval(std::time::Duration::from_secs(2));
     let stream = tokio_stream::StreamExt::map(IntervalStream::new(interval), move |_| {
-        let collector = state.collector.lock().unwrap();
+        let collector = state.collector.lock().unwrap_or_else(|e| e.into_inner());
         let data = serde_json::to_string(collector.snapshot()).unwrap_or_default();
         Ok(Event::default().event("metrics").data(data))
     });
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
-/// ── Main ──────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────
 
+/// Optional Bearer-token middleware for /v1/* routes.
+/// Activated only when the `DISTIRA_API_KEY` env var is set.
+/// If the env var is absent, every request passes through unchanged.
+async fn require_api_key(
+    req: Request<Body>,
+    next: Next,
+) -> Result<axum::response::Response, StatusCode> {
+    // If no key configured, always allow
+    let expected = match std::env::var("DISTIRA_API_KEY") {
+        Ok(k) if !k.trim().is_empty() => k,
+        _ => return Ok(next.run(req).await),
+    };
+
+    let provided = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(str::trim)
+        .unwrap_or("");
+
+    if provided == expected.trim() {
+        Ok(next.run(req).await)
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
+}
 #[tokio::main]
 async fn main() {
     println!("DISTIRA v{} — Sovereign AI Context OS", runtime_version());
@@ -1854,6 +2063,7 @@ async fn main() {
 
     let router_config = load_config();
     let workspace_context = load_workspace_context();
+    let policies = load_policies();
     if workspace_context.tenant_id.is_some() || workspace_context.project_id.is_some() {
         println!(
             "  Workspace scope: tenant={:?}, project={:?}, policy_pack={:?}",
@@ -1862,11 +2072,15 @@ async fn main() {
             workspace_context.policy_pack
         );
     }
+    if let Some(max) = policies.max_tokens_per_request {
+        println!("  Policy: max_tokens_per_request={max}");
+    }
 
     let state: SharedState = Arc::new(AppState {
         collector: Mutex::new(MetricsCollector::new()),
         router_config,
         workspace_context,
+        policies,
     });
 
     let cors = CorsLayer::new()
@@ -1874,9 +2088,7 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let app = Router::new()
-        .route("/healthz", get(health))
-        .route("/version", get(version))
+    let v1_routes = Router::new()
         .route("/v1/providers", get(list_providers))
         .route(
             "/v1/runtime/client-context",
@@ -1886,12 +2098,27 @@ async fn main() {
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/metrics", get(metrics_snapshot))
         .route("/v1/metrics/stream", get(metrics_stream))
+        .layer(middleware::from_fn(require_api_key))
+        .with_state(state.clone());
+
+    let app = Router::new()
+        .route("/healthz", get(health))
+        .route("/version", get(version))
+        .merge(v1_routes)
         .with_state(state)
         .layer(cors);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
     println!("────────────────────────────────────────");
     println!("Listening on {addr}");
+    if std::env::var("DISTIRA_API_KEY")
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false)
+    {
+        println!("  Auth: Bearer token enabled (DISTIRA_API_KEY is set)");
+    } else {
+        println!("  Auth: open (set DISTIRA_API_KEY to enable Bearer auth)");
+    }
     println!("  POST /v1/compile            — compile context only");
     println!("  POST /v1/chat/completions   — compile + forward to LLM");
     println!("  GET  /v1/providers          — list configured providers + runtime details");

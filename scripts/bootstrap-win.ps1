@@ -95,6 +95,14 @@ npm install
 Pop-Location
 Write-Host '[ok] Dashboard dependencies installed.' -ForegroundColor Green
 
+# -- 7b. Install MCP server dependencies ---------------
+Write-Host ''
+Write-Host '==> Installing MCP server dependencies...' -ForegroundColor Cyan
+Push-Location mcp
+npm install
+Pop-Location
+Write-Host '[ok] MCP server dependencies installed.' -ForegroundColor Green
+
 # -- 8. Pull Ollama models (if Ollama is available) -----
 if (Get-Command ollama -ErrorAction SilentlyContinue) {
     Write-Host ''

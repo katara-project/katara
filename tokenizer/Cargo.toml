@@ -1,0 +1,16 @@
+[package]
+name = "tokenizer"
+description = "Distira Universal Token Estimator — accurate BPE-style counting without vocabulary files"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = []
+# Exact GPT-4 / GPT-4o token counting using the embedded cl100k_base BPE vocabulary
+# (no external files required). Activates zero-error counting for ModelFamily::Gpt4
+# in count_for(). All other model families keep the optimised heuristic (±4–7%, zero deps).
+exact-gpt4 = ["dep:tiktoken-rs"]
+
+[dependencies]
+tiktoken-rs = { version = "0.6", optional = true }

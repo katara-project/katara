@@ -5,8 +5,12 @@
 name: distira-policies
 
 terms:
-  - license: "AGPL-3.0"
-  - notice: >-
+  - name: "local_only"
+    description: "Data tagged as 'local_only' must not be sent to cloud providers. It can only be processed by on-prem models."
+    license: "AGPL-3.0"
+  - name: "cost"
+    description: "Optimize provider selection to minimize cost per request, based on token usage and provider pricing."
+    notice: >-
       Distira is free and open-source software, licensed under AGPL-3.0.
       You are free to use, modify, and distribute it. Any modified version
       distributed or made available over a network must be released under
@@ -16,6 +20,6 @@ policies:
   sensitive_data: local_only
   optimize_for: cost
   max_tokens_per_request: 4000
-  fallback_provider: ollama-local
+  fallback_provider: ollama-llama3
   log_level: info
-  data_residency: eu
+  data_residency: on-prem

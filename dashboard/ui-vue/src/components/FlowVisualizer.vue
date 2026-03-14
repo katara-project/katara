@@ -9,7 +9,7 @@
 
     <div class="pipeline">
       <div v-for="(stage, i) in stages" :key="stage.id" class="pipeline-segment">
-        <div class="pipeline-node" :class="stage.variant">
+        <div class="pipeline-node" :class="[stage.variant, { active: stage.active }]">
           <SvgIcon :name="stage.icon" :size="22" class="node-icon" />
           <div class="node-body">
             <span class="node-label">{{ stage.label }}</span>
@@ -83,6 +83,17 @@ const fingerprintIsRunning = computed(() => {
   return nowEpoch.value - ts <= 8
 })
 
+// Per-stage activation windows: [offset_start, window_duration] in seconds after last request ts
+// request(0-3), fingerprint(0-4), cache(1-5), compiler(2-6), memory(3-7), router(4-9)
+const STAGE_WINDOWS = [[0, 3], [0, 4], [1, 5], [2, 6], [3, 7], [4, 9]] as const
+
+const stageActive = computed<boolean[]>(() => {
+  const ts = metrics.lastRequest?.ts
+  if (!ts) return STAGE_WINDOWS.map(() => false)
+  const elapsed = nowEpoch.value - ts
+  return STAGE_WINDOWS.map(([start, dur]) => elapsed >= start && elapsed < start + dur)
+})
+
 const semanticFingerprintLabel = computed(() => {
   const fp = metrics.lastRequest?.semantic_fingerprint
   if (!fp) return 'pending'
@@ -99,12 +110,12 @@ const semanticCacheLabel = computed(() => {
 })
 
 const stages = computed(() => [
-  { id: 'request', icon: 'inbox', label: 'Request', metric: `${metrics.rawTokens.toLocaleString()} tok`, variant: 'default' },
-  { id: 'fingerprint', icon: 'fingerprint', label: 'Fingerprint', metric: semanticFingerprintLabel.value, variant: 'default' },
-  { id: 'cache', icon: 'zap', label: 'Cache', metric: semanticCacheLabel.value, variant: 'accent' },
-  { id: 'compiler', icon: 'wrench', label: 'Compiler', metric: `${metrics.compiledTokens.toLocaleString()} tok`, variant: 'primary' },
-  { id: 'memory', icon: 'brain', label: 'Memory Lens', metric: `${metrics.memoryReusedTokens.toLocaleString()} reused`, variant: 'secondary' },
-  { id: 'router', icon: 'shield', label: 'Router', metric: `${metrics.localRatio}% local`, variant: 'good' },
+  { id: 'request', icon: 'inbox', label: 'Request', metric: `${metrics.rawTokens.toLocaleString()} tok`, variant: 'default', active: stageActive.value[0] },
+  { id: 'fingerprint', icon: 'fingerprint', label: 'Fingerprint', metric: semanticFingerprintLabel.value, variant: 'default', active: stageActive.value[1] },
+  { id: 'cache', icon: 'zap', label: 'Cache', metric: semanticCacheLabel.value, variant: 'accent', active: stageActive.value[2] },
+  { id: 'compiler', icon: 'wrench', label: 'Compiler', metric: `${metrics.compiledTokens.toLocaleString()} tok`, variant: 'primary', active: stageActive.value[3] },
+  { id: 'memory', icon: 'brain', label: 'Memory Lens', metric: `${metrics.memoryReusedTokens.toLocaleString()} reused`, variant: 'secondary', active: stageActive.value[4] },
+  { id: 'router', icon: 'shield', label: 'Router', metric: `${metrics.localRatio}% local`, variant: 'good', active: stageActive.value[5] },
 ])
 
 const branches = computed(() => {
@@ -277,6 +288,26 @@ const branches = computed(() => {
 .route-branch.active .branch-bar {
   opacity: 0.28;
   animation: branchPulse 1.4s ease-in-out infinite;
+}
+
+.pipeline-node.active {
+  transform: translateY(-3px);
+  box-shadow: 0 0 22px rgba(57, 211, 255, 0.45), 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: nodeGlow 1.6s ease-in-out infinite;
+}
+.pipeline-node.active.secondary {
+  box-shadow: 0 0 22px rgba(140, 109, 255, 0.45), 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.pipeline-node.active.accent {
+  box-shadow: 0 0 22px rgba(255, 214, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.pipeline-node.active.good {
+  box-shadow: 0 0 22px rgba(44, 255, 179, 0.45), 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes nodeGlow {
+  0%, 100% { box-shadow: 0 0 14px rgba(57, 211, 255, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25); }
+  50% { box-shadow: 0 0 28px rgba(57, 211, 255, 0.6), 0 10px 28px rgba(0, 0, 0, 0.35); }
 }
 
 @keyframes branchPulse {

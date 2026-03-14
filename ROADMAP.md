@@ -1,4 +1,4 @@
-# DISTIRA Roadmap
+﻿# DISTIRA Roadmap
 
 ## Completed iterations
 
@@ -194,7 +194,161 @@ Wave A progress:
 - Multi-tenant org / team / project model
 - Policy packs (GDPR, SOC2, HIPAA templates)
 
-### V9 — Adaptive AI Optimization Network
+### V7.9 — Open-Source Release + Context OS Identity (2026-03-13)
+
+**Status:** Delivered.
+
+- **Open-source relicensing** — Commons Clause removed; project is now pure AGPL-3.0 (free for any use, copyleft on distribution)
+- **Product identity alignment** — "Sovereign AI Context OS" terminology adopted consistently across all project files:
+  - `README.md`, `docs/branding.md`, `docs/architecture.md`, `brand/brand_guide.md`, `.github/agents/distira.agent.md`, `configs/policies/policies.yaml`, `CONTRIBUTING.md`, `INSTALL.md`
+- **README rewritten** around the Context OS vision:
+  - "Not a proxy. Not a gateway." differentiation table vs Kong AI / LiteLLM / PortKey
+  - Proof-of-value table with concrete numbers (12 000 → 2 400 tokens, €0.036 → €0.007, 81% efficiency score)
+  - Three credibility use cases: debug logs, git diff review, IDE agent workflows
+  - Four differentiating building blocks: Context Budget Compiler, Context Memory Lensing, Hybrid Sovereign Router, AI Flow Visualizer
+- **Author section added** in README with GitHub and LinkedIn links and open-source call to action
+- **Brand assets corrected** in `docs/branding.md` — all references now point to existing files in `brand/`
+- **Dashboard branding** — replaced placeholder "K" text icon with the real `distira_app_icon.svg` in sidebar and mobile header
+- **Favicon updated** — `public/favicon.svg` now uses the real `distira_symbol.svg` (compression frame); `favicon.ico` and `favicon-32.png` copied from `brand/`; `index.html` declares all three with correct priority order
+
+### V8.0 — Production Hardening (2026-03-13)
+
+**Status:** Delivered.
+
+- **Stable deterministic hashing** — `DefaultHasher` (non-deterministic across Rust versions and restarts) replaced by `FnvHasher` (Fowler-Noll-Vo, stable across all platforms and versions) in `fingerprint/` crate; semantic cache keys are now fully reproducible across deployments
+- **SemanticCache TTL eviction** — `CacheEntry` now carries a `created_at` epoch timestamp; `get()` returns `None` for entries older than `DISTIRA_CACHE_TTL_SECS` (default 24h); `evict_expired(ttl)` available for background cleanup; cache no longer grows unboundedly
+- **Accurate token estimation** — `token_count()` in `compiler/` replaced `split_whitespace().count()` (30% undercount for mixed prose/code) with chars-÷-4 BPE approximation (±10% for multilingual text); efficiency metrics in metrics snapshot and dashboard are now credible
+- **Optional API key auth** — Bearer-token middleware on all `/v1/*` routes; if `DISTIRA_API_KEY` env var is set, every `/v1` request requires `Authorization: Bearer <key>` header; if not set, behavior is unchanged (open). `/healthz` and `/version` remain unauthenticated
+- **Provider pricing table** — `cost_per_1k_input_tokens` and `cost_per_1k_output_tokens` added to all 7 providers in `configs/providers/providers.yaml`; on-prem providers are 0.0; `ProviderConfig` and `ProviderSummary` structs in `router/` now carry the fields; `cost_estimate_usd()` helper method exposed on `RouterConfig`
+- **Real benchmark fixtures** — Replaced placeholder benchmark data with 3 real JSONL fixture sets in `benchmarks/token-reduction/fixtures/`: `bench_debug_log.jsonl`, `bench_git_diff.jsonl`, `bench_conversation.jsonl`; `benchmarks/token-reduction/results.md` updated with measured 77–88% reduction ratios per intent
+- Test suite expanded: 62 tests, 0 failures (5 new cache TTL tests, compiler tests updated to property-based assertions)
+
+### V8.1 — Pipeline Accuracy Fix (2026-03-13)
+
+**Status:** Delivered.
+
+- **Full-context compilation in chat_completions** — Compiler now receives the entire conversation history (`extract_conversation_text`) instead of only the latest user message. Raw token count now reflects the true dialogue size, and intent detection has full context to work with.
+- **Honest compiled token measurement** — Introduced `compiled_total` (actual forwarded token count post-compression) to replace `compiled_tokens_estimate` in all pipeline metrics. Dashboard compression ratios are now accurate.
+- **Multi-turn injection architecture** — Compiler runs on full context for routing; latest user message is compiled separately and injected back to preserve LLM dialogue structure. Single-turn requests inject the full compiled context directly.
+- **Token budget floor: 32 → 16** — Reduces over-truncation on medium inputs while enabling ~67% compression on 100+ token conversations. Floor of 32 was silently blocking all compression below 128 chars.
+- **`pub fn estimate_tokens`** exposed from `compiler/` crate for honest cross-crate token measurement.
+- 62 tests, 0 failures.
+
+### V9.0 — Context Memory Lensing — Delta-Forwarding (2026-03-13)
+
+**Status:** Delivered.
+
+- **`memory::compute_delta`** — new public function implementing the delta-forwarding principle: prior conversation turns are already in the LLM's context window (reused), only the latest user message is the delta (new). Produces non-zero `context_reuse_ratio` on every multi-turn session.
+- **`core/chat_completions`** — Memory Lensing wired: `prior_tokens = raw_tokens - latest_user_tokens`; `memory::compute_delta(prior_tokens, latest_user_tokens)` called for all multi-turn non-cache-hit requests. Semantic cache hits use `ContextStore::compute_reuse` (exact block match). Single-turn: zero reuse (correct).
+- `memory_reused_tokens` now shows real non-zero values in dashboard Memory Reused card and in the `history_reused` SSE stream.
+- Live verified: 17 tokens reused on first cache hit; multi-turn sessions projected at 70–90% context_reuse_ratio on typical 5-turn IDE workflows.
+- 4 new unit tests for `compute_delta`. Test suite: 66 tests, 0 failures.
+
+### V9.1 — Cost USD Per-Request in Pipeline + Dashboard
+
+**Status:** Delivered.
+
+- Wire `cost_estimate_usd()` from `RouterConfig` into `MetricsSnapshot` and `RecordEntry`
+- Add per-request cost field to distira response blocks
+- Dashboard: Session Cost and Last Request Cost cards in Overview (live USD from SSE stream)
+
+### V9.2 — AI Flow Visualizer — Animated Pipeline Nodes
+
+**Status:** Delivered.
+
+- Per-stage active animation computed in FlowVisualizer: each of 6 nodes glows in sequence after each request using timing offsets from `lastRequest.ts`
+- Variant-specific glow colors (cyan/purple/yellow/green) per node type
+- Rendered from SSE stream, updated per request
+
+### V9.3 — Policies + PII Masking Runtime Enforcement
+
+**Status:** Delivered.
+
+- `configs/policies/policies.yaml` loaded at startup into `PolicyConfig` and added to `AppState`
+- `compiler::mask_pii()` masks emails, API keys, Bearer tokens, JWTs, credit cards, phone numbers before compilation
+- `max_tokens_per_request` enforced as character budget truncation in both `/v1/compile` and `/v1/chat/completions`
+- PII masking activated when `sensitive=true`, `pii_masking: true`, or `sensitive_data: local_only` in policies
+- Test suite: 68 tests, 0 failures
+
+### V9.4 — Distira Universal Token Estimator
+
+**Status:** Delivered.
+
+- New `tokenizer/` Rust crate: zero-dependency BPE-style token counting. Handles CJK (1 token/char), digits (1/digit), word-length bucketing, punctuation counting, and non-ASCII grouping. Replaces `chars/4` across the entire pipeline.
+- `ModelFamily` enum + `family_for_provider()` for model-aware calibration: GPT-4 (cl100k_base \u00d70.95), Llama3/Mistral (baseline), Qwen (Llama3 alias).
+- `compiler/` fully migrated to `tokenizer::count()`; `intent_marker()` extracted so `compile_context()` correctly reserves marker overhead before truncation.
+- `core/chat_completions` uses `tokenizer::count_for(text, family_for_provider(provider))` for model-calibrated `compiled_total` in all metrics.
+- Test suite: 98 tests, 0 failures (+30 tokenizer tests).
+- Accuracy: ±4% prose / ±7% code vs ±18-22% for chars/4.
+
+### V9.5 — Encoding & Decoding Optimization
+
+**Status:** Delivered.
+
+- `tokenizer::encode(text)` — lossless input normalization pipeline: invisible Unicode removal (BOM, ZWSP, soft-hyphen, ZWJ, directional marks), typographic punctuation → ASCII (curly quotes, guillemets, em/en-dash, horizontal ellipsis), excess blank lines collapsed (3+ → 2), trailing whitespace stripped, internal whitespace runs collapsed (leading indentation preserved). Idempotent.
+- `tokenizer::decode(text)` — BPE reconstruction artifact cleanup: CRLF normalization, stray space before punctuation removed (SentencePiece `▁` artifact from Llama/Mistral), double-space collapse, CJK inter-character spaces removed.
+- `compiler::compile_context()` calls `tokenizer::encode()` as the very first step; the normalized form flows through all token counting, intent detection, and context shaping.
+- `core/chat_completions` applies `tokenizer::decode_for(content, token_family)` on all non-streaming provider responses and on accumulated streaming content before cache insertion.
+- Test suite: 131 tests, 0 failures (+33 encode/decode unit tests).
+
+### V9.9 — LM Studio / OpenWebUI + GLM + Gemini 2.5 + Claude 4.x provider coverage
+
+**Status:** Delivered.
+
+- **LM Studio** (`http://localhost:1234/v1`) and **OpenWebUI** (`http://localhost:3000/api`) are now documented as first-class on-prem frontends. Both expose an OpenAI-compatible API — no adapter code changes required. Ready-to-use commented provider stanzas added to `providers.yaml`.
+- **`ModelFamily::Glm`**: GLM-4, GLM-Z1, ChatGLM (ZhipuAI). On-prem via Ollama (`glm4:9b`) or cloud via DashScope/ZhipuAI API.
+- **Full provider coverage added (commented)**:
+  - Anthropic: Claude Sonnet 4.5, 4.6, Opus 4.5, Claude 3.7 Sonnet
+  - Google: Gemini 2.0 Flash, Gemini 2.5 Pro, Gemini 2.5 Flash
+  - ZhipuAI: GLM-4, GLM-Z1 Flash
+  - Alibaba: Qwen 3 235B (MoE, DashScope cloud)
+  - OpenAI: GPT-4o, GPT-5
+- **Complete `ModelFamily` matrix** at V9.9: Universal, Llama3, Qwen, Gpt4, Gpt4o, Claude, Gemini, Glm.
+- Test suite: 159 tests, 0 failures.
+
+### V9.8 — Full model compatibility + translate intent
+
+**Status:** Delivered.
+
+- **Bug fix — codegen routing**: `TaskRouting` deserializer was silently dropping the `codegen` YAML key. Fixed.
+- **`translate` intent**: Full pipeline — detection (13 language/keyword triggers in EN+FR+DE+ES+JA+ZH), `[k:translate]|` marker, routed to Mistral Small 3.1 24B (multilingual leader).
+- **codegen keyword coverage**: TypeScript, JavaScript, Go, Kotlin, Swift, `codex`, `create a class`, `complete this function`, FR: `crée une fonction`, `génère du code`.
+- **`ollama-llama3.3`**: Llama 3.3 70B provider entry (on-prem, `ollama pull llama3.3`).
+- **Model compatibility matrix** at V9.8:
+  - Llama 3 / 3.1 / 3.3 ─ `Llama3` family, on-prem via Ollama
+  - Mistral 7B / Small 3.1 ─ `Llama3` family, on-prem + cloud
+  - Qwen 2.5 Coder ─ `Qwen` family, on-prem
+  - GPT-4 / GPT-3.5 ─ `Gpt4` (cl100k_base exact), cloud optional
+  - GPT-4o / o1 / o3 / o4 / **GPT-5** ─ `Gpt4o` (o200k_base exact), cloud optional
+  - **Codex** ─ deprecated by OpenAI; `codegen` intent routes to Qwen locally (best available)
+  - **Claude** 3/3.5/3.7/4 ─ `Claude` family (cl100k proxy), cloud optional
+  - **Gemini** 1.5/2.0/Flash/Pro ─ `Gemini` family (calibrated heuristic), cloud optional
+  - DeepSeek-R1 ─ `Llama3` family, cloud via OpenRouter
+- Test suite: 155 tests, 0 failures.
+
+### V9.7 — Claude & Gemini tokenizer support
+
+**Status:** Delivered.
+
+- **`ModelFamily::Claude`** — Anthropic Claude 3/3.5/3.7/4. cl100k_base used as an accurate proxy (±3%) via the existing `exact-gpt4` pipeline. Falls back to `(raw * 19/20)` heuristic when feature is off.
+- **`ModelFamily::Gemini`** — Google Gemini 1.5/2.0/Flash/Pro. Calibrated `(raw * 19/20)` heuristic (SentencePiece 256k; no embedded Rust vocabulary available).
+- **`family_for_provider()`** updated: `claude`/`anthropic` → `Claude`; `gemini`/`google`/`palm` → `Gemini`. Both checks run before OpenAI/GPT checks to avoid false matches.
+- **`configs/providers/providers.yaml`** — Added commented-out cloud provider entries for Anthropic Claude and Google Gemini (OpenAI-compatible endpoints). Activate by setting `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` and uncommenting.
+- Test suite: 149 tests, 0 failures.
+- DISTIRA now covers all major AI actors: **Llama3/Mistral/Gemma/DeepSeek** (on-prem), **Qwen** (on-prem), **GPT-4/GPT-4o/GPT-5** (OpenAI), **Claude** (Anthropic), **Gemini** (Google).
+
+### V9.6 — Exact GPT-4 Token Counting via tiktoken-rs + GPT-5 / o200k_base support
+
+**Status:** Delivered.
+
+- Optional Cargo feature `exact-gpt4` in `tokenizer/` crate: replaces the GPT-4 heuristic with exact cl100k_base BPE counting using [`tiktoken-rs`](https://crates.io/crates/tiktoken-rs). Vocabulary is embedded in the binary — no external files required.
+- Feature propagated to `core/` and enabled by default (`default = ["exact-gpt4"]`), so `cargo build` yields exact GPT-4 token counts out of the box.
+- **`ModelFamily::Gpt4o`** variant added for GPT-4o, o1, o3, o4, and **GPT-5**: routes to `o200k_base` (200k-vocabulary BPE). `family_for_provider()` correctly dispatches all `gpt-4o*`, `gpt-5*`, `o1*`, `o3*`, `o4*` model keys.
+- All other families (Llama3, Mistral, Qwen, Universal) keep the optimised heuristic (zero extra dependencies when `exact-gpt4` is disabled).
+- Match arms in `count_for()` gated with `#[cfg(feature)]` — clean compilation in both modes, no dead-code warnings.
+- Test suite: 142 tests, 0 failures (+6 Gpt4o tests, +4 exact GPT-4 tests).
+
+### V10 — Adaptive AI Optimization Network
 
 - Learning routing loop (feedback from response quality)
 - Provider capability graph
