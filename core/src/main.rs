@@ -1371,15 +1371,18 @@ async fn compile(
     let mut collector = state.collector.lock().unwrap();
     let (fp, result, cache_hit) = compile_with_semantic_cache(&mut collector, &context_input);
     let mem = if cache_hit {
+        // Exact semantic cache hit → full block reuse.
         collector
             .context_store
             .compute_reuse(fp, result.raw_tokens_estimate, &result.intent)
     } else {
-        memory::MemorySummary {
-            reused_tokens: 0,
-            delta_tokens: result.raw_tokens_estimate,
-            context_reuse_ratio: 0.0,
-        }
+        // Cache miss — but prior stable blocks may cover part of this compiled
+        // context (same vocabulary, same intent).  Count the lexical overlap so
+        // the Memory Lensing metric grows with every related compile request,
+        // not only on exact cache hits.
+        collector
+            .context_store
+            .estimate_coverage(&result.compiled_context, &result.intent)
     };
     let runtime_context = read_runtime_client_context();
     let scope = resolve_workspace_scope(

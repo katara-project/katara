@@ -3,36 +3,56 @@
     <header class="view-header">
       <div>
         <h2>Context Memory</h2>
-        <p class="muted">Track stable context blocks, delta tokens, and reuse optimization across sessions.</p>
+        <p class="muted">DISTIRA remembers context from previous requests so it doesn't re-process what it already knows.</p>
       </div>
     </header>
 
+    <!-- Top KPIs -->
     <div class="memory-stats">
-      <MetricCard label="Reused Tokens" :value="metrics.memoryReusedTokens.toLocaleString()" hint="From stable blocks" accent="secondary" />
-      <MetricCard label="Reuse Ratio" :value="reuseRatioPct + '%'" hint="Context reuse efficiency" accent="accent" />
-      <MetricCard label="Stable Blocks" :value="metrics.stableBlocks.toString()" hint="Identified as reusable" accent="primary" />
+      <MetricCard label="Tokens Saved by Memory" :value="metrics.memoryReusedTokens.toLocaleString()" hint="Not re-sent to the LLM this session" accent="secondary" />
+      <MetricCard label="Memory Efficiency" :value="reuseRatioPct + '%'" hint="Share of context recognised from prior requests" accent="accent" />
+      <MetricCard label="Topics in Memory" :value="metrics.stableBlocks.toString()" hint="Context blocks actively reused" accent="primary" />
     </div>
 
-    <section class="card memory-blocks">
-      <h3>Context Block Status</h3>
-      <div v-if="liveBlocks.length" class="block-grid">
-        <div v-for="block in liveBlocks" :key="block.id" class="mem-block" :class="block.status">
-          <div class="block-header">
-            <span class="block-id">#{{ block.id }}</span>
-            <span class="block-badge">{{ block.status }}</span>
+    <!-- Session savings bar -->
+    <section class="card savings-section">
+      <h3>Session Savings</h3>
+      <p class="muted savings-label">
+        DISTIRA has saved <strong>{{ metrics.memoryReusedTokens.toLocaleString() }} tokens</strong> out of
+        {{ metrics.rawTokens.toLocaleString() }} total tokens sent this session.
+      </p>
+      <div class="savings-bar-bg">
+        <div class="savings-bar-fill" :style="{ width: reuseRatioPct + '%' }"></div>
+      </div>
+      <div class="savings-bar-legend">
+        <span class="legend-reused">● Reused ({{ reuseRatioPct }}%)</span>
+        <span class="legend-new">● New ({{ 100 - reuseRatioPct }}%)</span>
+      </div>
+    </section>
+
+    <!-- Topic memory breakdown -->
+    <section class="card">
+      <h3>What DISTIRA Has in Memory</h3>
+      <p class="muted" style="margin-bottom:16px">
+        Each row is a topic area DISTIRA has learnt from your requests. The stronger the bar, the more reliably it will be reused.
+      </p>
+      <div v-if="topicGroups.length" class="topic-list">
+        <div v-for="group in topicGroups" :key="group.intent" class="topic-row">
+          <div class="topic-meta">
+            <span class="topic-label">{{ group.label }}</span>
+            <span class="topic-stat">{{ group.count }} block{{ group.count !== 1 ? 's' : '' }} · {{ group.tokens }} tokens</span>
           </div>
-          <div class="block-tokens">{{ block.tokens }} tokens</div>
-          <div class="block-desc">
-            <span v-if="block.intent" class="block-intent">{{ block.intent }}</span>
-            <span class="block-stability">stability {{ (block.stabilityRaw * 100).toFixed(0) }}%</span>
+          <div class="topic-bar-bg">
+            <div class="topic-bar-fill" :class="group.healthClass" :style="{ width: group.healthPct + '%' }"></div>
           </div>
         </div>
       </div>
-      <p v-else class="muted">No context blocks yet. Blocks appear after the first compiled request is processed.</p>
+      <p v-else class="muted">No memory yet — send a few requests and DISTIRA will start building context.</p>
     </section>
 
+    <!-- How it works -->
     <section class="card">
-      <h3>How Memory Lensing Works</h3>
+      <h3>How It Works</h3>
       <div class="lens-steps">
         <div class="lens-step" v-for="(step, i) in steps" :key="i">
           <div class="step-num">{{ i + 1 }}</div>
@@ -53,87 +73,115 @@ import MetricCard from '../components/MetricCard.vue'
 
 const metrics = useMetricsStore()
 
-// Live reuse ratio: derived from cumulative session totals
+const INTENT_LABELS: Record<string, string> = {
+  codegen: '💻 Code generation',
+  debug: '🐛 Debugging',
+  review: '🔍 Code review',
+  summarize: '📝 Summarisation',
+  translate: '🌍 Translation',
+  ocr: '🖼️ OCR / Image',
+  general: '💬 General questions',
+  '': '💬 General questions',
+}
+
 const reuseRatioPct = computed(() => {
   return metrics.rawTokens > 0
     ? Math.round((metrics.memoryReusedTokens / metrics.rawTokens) * 100)
     : 0
 })
 
-// Map live context blocks from SSE stream
-const liveBlocks = computed(() => {
-  return metrics.contextBlocksSummary.map((b) => ({
-    id: b.id,
-    tokens: b.token_count,
-    stabilityRaw: b.stability,
-    intent: b.intent || '',
-    status: b.stability >= 0.7 ? 'stable' : b.stability >= 0.3 ? 'delta' : 'evicted',
-  }))
+// Group live blocks by intent, compute aggregate health (avg stability)
+const topicGroups = computed(() => {
+  const map: Record<string, { count: number; tokens: number; stabilitySum: number }> = {}
+  for (const b of metrics.contextBlocksSummary) {
+    const key = b.intent || ''
+    if (!map[key]) map[key] = { count: 0, tokens: 0, stabilitySum: 0 }
+    map[key].count++
+    map[key].tokens += b.token_count
+    map[key].stabilitySum += b.stability
+  }
+  return Object.entries(map)
+    .map(([intent, g]) => {
+      const avgStability = g.count > 0 ? g.stabilitySum / g.count : 0
+      const healthPct = Math.round(avgStability * 100)
+      const healthClass =
+        healthPct >= 70 ? 'health-strong' : healthPct >= 30 ? 'health-mid' : 'health-weak'
+      return {
+        intent,
+        label: INTENT_LABELS[intent] ?? intent,
+        count: g.count,
+        tokens: g.tokens,
+        healthPct,
+        healthClass,
+      }
+    })
+    .sort((a, b) => b.tokens - a.tokens)
 })
 
 const steps = [
-  { title: 'Fingerprint each block', desc: 'Every context segment is hashed to detect duplicates across turns.' },
-  { title: 'Classify stability', desc: 'Blocks unchanged for 3+ turns are marked stable and cached.' },
-  { title: 'Send only deltas', desc: 'Only new or modified blocks are compiled and sent to the provider.' },
-  { title: 'Measure reuse', desc: 'Context reuse ratio becomes a first-class optimization metric.' },
+  { title: 'Every request is fingerprinted', desc: 'DISTIRA hashes each incoming context to detect if it has seen similar content before.' },
+  { title: 'Stable content is cached', desc: 'Context that appears repeatedly is stored as a memory block and reused in future requests.' },
+  { title: 'Only new content is sent', desc: 'On your next request, only the parts DISTIRA has not seen before are compiled and forwarded to the LLM.' },
+  { title: 'You save tokens every session', desc: 'The memory efficiency score shows how much context was served from cache rather than re-processed.' },
 ]
 </script>
 
 <style scoped>
 .memory-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
-.memory-blocks h3 { margin: 0 0 16px; }
-.block-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.mem-block {
-  padding: 14px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: transform 0.2s;
+
+/* ── Session savings bar ─────────────────────────────────────────────── */
+.savings-section h3 { margin: 0 0 8px; }
+.savings-label { margin: 0 0 14px; font-size: 0.9rem; }
+.savings-bar-bg {
+  height: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  margin-bottom: 8px;
 }
-.mem-block:hover { transform: translateY(-2px); }
-.mem-block.stable { border-color: rgba(44, 255, 179, 0.2); }
-.mem-block.delta { border-color: rgba(57, 211, 255, 0.2); }
-.mem-block.evicted { border-color: rgba(255, 100, 100, 0.2); opacity: 0.6; }
-.block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.block-id { font-weight: 700; font-size: 0.85rem; color: var(--muted); }
-.block-badge {
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.savings-bar-fill {
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--secondary), var(--accent));
+  transition: width 0.6s ease;
 }
-.mem-block.stable .block-badge { background: rgba(44, 255, 179, 0.15); color: var(--accent); }
-.mem-block.delta .block-badge { background: rgba(57, 211, 255, 0.15); color: var(--primary); }
-.mem-block.evicted .block-badge { background: rgba(255, 100, 100, 0.15); color: #ff6464; }
-.block-tokens { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
-.block-desc { font-size: 0.82rem; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
-.block-intent { color: var(--primary); font-style: italic; }
-.block-stability { color: var(--muted); }
+.savings-bar-legend { display: flex; gap: 20px; font-size: 0.82rem; color: var(--muted); }
+.legend-reused { color: var(--accent); }
+.legend-new { color: var(--muted); }
+
+/* ── Topic memory list ───────────────────────────────────────────────── */
+.topic-list { display: flex; flex-direction: column; gap: 14px; }
+.topic-row { display: flex; flex-direction: column; gap: 6px; }
+.topic-meta { display: flex; justify-content: space-between; align-items: baseline; }
+.topic-label { font-weight: 600; font-size: 0.92rem; }
+.topic-stat { font-size: 0.8rem; color: var(--muted); }
+.topic-bar-bg {
+  height: 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.topic-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.6s ease;
+}
+.health-strong { background: var(--accent); }
+.health-mid    { background: var(--primary); }
+.health-weak   { background: rgba(255, 180, 50, 0.7); }
+
+/* ── How it works steps ──────────────────────────────────────────────── */
 .lens-steps { display: flex; flex-direction: column; gap: 16px; margin-top: 8px; }
 .lens-step { display: flex; gap: 16px; align-items: flex-start; }
 .step-num {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
   background: linear-gradient(135deg, var(--primary), var(--secondary));
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 0.85rem;
-  flex-shrink: 0;
+  display: grid; place-items: center; font-weight: 700; font-size: 0.85rem;
 }
 .step-content strong { display: block; margin-bottom: 4px; }
 .step-content p { margin: 0; font-size: 0.88rem; line-height: 1.5; }
-@media (max-width: 1100px) {
-  .memory-stats, .block-grid { grid-template-columns: 1fr; }
-}
+
 @media (max-width: 768px) {
   .memory-stats { grid-template-columns: 1fr; }
-  .block-grid { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 480px) {
-  .block-grid { grid-template-columns: 1fr; }
 }
 </style>

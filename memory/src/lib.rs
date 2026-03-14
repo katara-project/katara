@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Minimum stability before a block is evicted (V9.13).
 const DECAY_EVICT_THRESHOLD: f32 = 0.10;
@@ -129,6 +129,51 @@ impl ContextStore {
                     self.blocks.insert(fingerprint, block);
                 }
             }
+        }
+    }
+
+    /// Estimate how many tokens of `compiled` are covered by prior stable blocks
+    /// of the same intent (lexical word-set intersection).
+    ///
+    /// Used in the compile handler on a cache **miss** to credit partial reuse:
+    /// if the system has already compiled similar content (same intent, shared
+    /// vocabulary) those overlapping tokens represent knowledge the LLM has
+    /// already seen — they are genuinely "reused" context.
+    pub fn estimate_coverage(&self, compiled: &str, intent: &str) -> MemorySummary {
+        if self.blocks.is_empty() || compiled.trim().is_empty() {
+            return MemorySummary {
+                reused_tokens: 0,
+                delta_tokens: token_count(compiled),
+                context_reuse_ratio: 0.0,
+            };
+        }
+
+        let compiled_words: HashSet<&str> = compiled.split_whitespace().collect();
+        let total = compiled_words.len();
+        if total == 0 {
+            return MemorySummary {
+                reused_tokens: 0,
+                delta_tokens: 0,
+                context_reuse_ratio: 0.0,
+            };
+        }
+
+        // Union of all words seen in stable blocks of the same (or untagged) intent.
+        let known_words: HashSet<&str> = self
+            .blocks
+            .values()
+            .filter(|b| b.intent.is_empty() || b.intent == intent)
+            .flat_map(|b| b.content.split_whitespace())
+            .collect();
+
+        let covered = compiled_words.intersection(&known_words).count();
+        let delta = total.saturating_sub(covered);
+        let ratio = (covered as f32 / total as f32).min(1.0);
+
+        MemorySummary {
+            reused_tokens: covered,
+            delta_tokens: delta,
+            context_reuse_ratio: ratio,
         }
     }
 }
@@ -303,5 +348,45 @@ mod tests {
         assert_eq!(summary.reused_tokens, 100);
         assert_eq!(summary.delta_tokens, 25);
         assert!((summary.context_reuse_ratio - (100.0_f32 / 125.0)).abs() < 0.001);
+    }
+
+    // ── estimate_coverage (V10.1 — partial reuse on cache miss) ─────────────
+
+    #[test]
+    fn estimate_coverage_empty_store_returns_zero() {
+        let store = ContextStore::new();
+        let summary = store.estimate_coverage("some compiled output here", "general");
+        assert_eq!(summary.reused_tokens, 0);
+    }
+
+    #[test]
+    fn estimate_coverage_full_overlap_returns_all() {
+        let mut store = ContextStore::new();
+        store.register(1, "alpha beta gamma", "general");
+        // Compiled context uses exact same words → 100 % coverage
+        let summary = store.estimate_coverage("alpha beta gamma", "general");
+        assert_eq!(summary.reused_tokens, 3);
+        assert_eq!(summary.delta_tokens, 0);
+        assert!((summary.context_reuse_ratio - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn estimate_coverage_partial_overlap() {
+        let mut store = ContextStore::new();
+        store.register(1, "alpha beta gamma delta", "general");
+        // 2 of 4 words are new
+        let summary = store.estimate_coverage("alpha beta epsilon zeta", "general");
+        assert_eq!(summary.reused_tokens, 2);
+        assert_eq!(summary.delta_tokens, 2);
+        assert!((summary.context_reuse_ratio - 0.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn estimate_coverage_intent_mismatch_ignored() {
+        let mut store = ContextStore::new();
+        // Block registered under "debug" intent — should not contribute to "general"
+        store.register(1, "alpha beta gamma", "debug");
+        let summary = store.estimate_coverage("alpha beta gamma", "general");
+        assert_eq!(summary.reused_tokens, 0);
     }
 }
