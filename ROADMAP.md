@@ -1,4 +1,4 @@
-# DISTIRA Roadmap
+﻿# DISTIRA Roadmap
 
 ## Completed iterations
 
@@ -223,7 +223,7 @@ Wave A progress:
 - **Real benchmark fixtures** — Replaced placeholder benchmark data with 3 real JSONL fixture sets in `benchmarks/token-reduction/fixtures/`: `bench_debug_log.jsonl`, `bench_git_diff.jsonl`, `bench_conversation.jsonl`; `benchmarks/token-reduction/results.md` updated with measured 77–88% reduction ratios per intent
 - Test suite expanded: 62 tests, 0 failures (5 new cache TTL tests, compiler tests updated to property-based assertions)
 
-### V8.1 — Pipeline Accuracy Fix (2026-03-14)
+### V8.1 — Pipeline Accuracy Fix (2026-03-13)
 
 **Status:** Delivered.
 
@@ -243,27 +243,6 @@ Wave A progress:
 - `memory_reused_tokens` now shows real non-zero values in dashboard Memory Reused card and in the `history_reused` SSE stream.
 - Live verified: 17 tokens reused on first cache hit; multi-turn sessions projected at 70–90% context_reuse_ratio on typical 5-turn IDE workflows.
 - 4 new unit tests for `compute_delta`. Test suite: 66 tests, 0 failures.
-
-### V9.5 — Encoding & Decoding Optimization
-
-**Status:** Delivered.
-
-- `tokenizer::encode(text)` — lossless input normalization pipeline: invisible Unicode removal (BOM, ZWSP, soft-hyphen, ZWJ, directional marks), typographic punctuation → ASCII (curly quotes, guillemets, em/en-dash, horizontal ellipsis), excess blank lines collapsed (3+ → 2), trailing whitespace stripped, internal whitespace runs collapsed (leading indentation preserved). Idempotent.
-- `tokenizer::decode(text)` — BPE reconstruction artifact cleanup: CRLF normalization, stray space before punctuation removed (SentencePiece `▁` artifact from Llama/Mistral), double-space collapse, CJK inter-character spaces removed.
-- `compiler::compile_context()` calls `tokenizer::encode()` as the very first step; the normalized form flows through all token counting, intent detection, and context shaping.
-- `core/chat_completions` applies `tokenizer::decode_for(content, token_family)` on all non-streaming provider responses and on accumulated streaming content before cache insertion.
-- Test suite: 131 tests, 0 failures (+33 encode/decode unit tests).
-
-### V9.4 — Distira Universal Token Estimator
-
-**Status:** Delivered.
-
-- New `tokenizer/` Rust crate: zero-dependency BPE-style token counting. Handles CJK (1 token/char), digits (1/digit), word-length bucketing, punctuation counting, and non-ASCII grouping. Replaces `chars/4` across the entire pipeline.
-- `ModelFamily` enum + `family_for_provider()` for model-aware calibration: GPT-4 (cl100k_base \u00d70.95), Llama3/Mistral (baseline), Qwen (Llama3 alias).
-- `compiler/` fully migrated to `tokenizer::count()`; `intent_marker()` extracted so `compile_context()` correctly reserves marker overhead before truncation.
-- `core/chat_completions` uses `tokenizer::count_for(text, family_for_provider(provider))` for model-calibrated `compiled_total` in all metrics.
-- Test suite: 98 tests, 0 failures (+30 tokenizer tests).
-- Accuracy: ±4% prose / ±7% code vs ±18-22% for chars/4.
 
 ### V9.1 — Cost USD Per-Request in Pipeline + Dashboard
 
@@ -290,6 +269,27 @@ Wave A progress:
 - `max_tokens_per_request` enforced as character budget truncation in both `/v1/compile` and `/v1/chat/completions`
 - PII masking activated when `sensitive=true`, `pii_masking: true`, or `sensitive_data: local_only` in policies
 - Test suite: 68 tests, 0 failures
+
+### V9.4 — Distira Universal Token Estimator
+
+**Status:** Delivered.
+
+- New `tokenizer/` Rust crate: zero-dependency BPE-style token counting. Handles CJK (1 token/char), digits (1/digit), word-length bucketing, punctuation counting, and non-ASCII grouping. Replaces `chars/4` across the entire pipeline.
+- `ModelFamily` enum + `family_for_provider()` for model-aware calibration: GPT-4 (cl100k_base \u00d70.95), Llama3/Mistral (baseline), Qwen (Llama3 alias).
+- `compiler/` fully migrated to `tokenizer::count()`; `intent_marker()` extracted so `compile_context()` correctly reserves marker overhead before truncation.
+- `core/chat_completions` uses `tokenizer::count_for(text, family_for_provider(provider))` for model-calibrated `compiled_total` in all metrics.
+- Test suite: 98 tests, 0 failures (+30 tokenizer tests).
+- Accuracy: ±4% prose / ±7% code vs ±18-22% for chars/4.
+
+### V9.5 — Encoding & Decoding Optimization
+
+**Status:** Delivered.
+
+- `tokenizer::encode(text)` — lossless input normalization pipeline: invisible Unicode removal (BOM, ZWSP, soft-hyphen, ZWJ, directional marks), typographic punctuation → ASCII (curly quotes, guillemets, em/en-dash, horizontal ellipsis), excess blank lines collapsed (3+ → 2), trailing whitespace stripped, internal whitespace runs collapsed (leading indentation preserved). Idempotent.
+- `tokenizer::decode(text)` — BPE reconstruction artifact cleanup: CRLF normalization, stray space before punctuation removed (SentencePiece `▁` artifact from Llama/Mistral), double-space collapse, CJK inter-character spaces removed.
+- `compiler::compile_context()` calls `tokenizer::encode()` as the very first step; the normalized form flows through all token counting, intent detection, and context shaping.
+- `core/chat_completions` applies `tokenizer::decode_for(content, token_family)` on all non-streaming provider responses and on accumulated streaming content before cache insertion.
+- Test suite: 131 tests, 0 failures (+33 encode/decode unit tests).
 
 ### V10 — Adaptive AI Optimization Network
 
