@@ -5,7 +5,7 @@ use axum::{
     middleware::{self, Next},
     response::sse::{Event, KeepAlive, Sse},
     response::IntoResponse,
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use futures_util::StreamExt as FuturesStreamExt;
@@ -481,6 +481,39 @@ impl MetricsCollector {
         &self.snapshot
     }
 
+    fn reset(&mut self) {
+        self.snapshot = MetricsSnapshot {
+            ts: now_epoch(),
+            total_requests: 0,
+            raw_tokens: 0,
+            compiled_tokens: 0,
+            memory_reused_tokens: 0,
+            efficiency_score: 0.0,
+            local_ratio: 0.0,
+            cache_hits: 0,
+            cache_misses: 0,
+            cache_saved_tokens: 0,
+            history_raw: Vec::with_capacity(24),
+            history_compiled: Vec::with_capacity(24),
+            history_reused: Vec::with_capacity(24),
+            history_hour_epochs: Vec::with_capacity(24),
+            history_hour_raw: Vec::with_capacity(24),
+            history_hour_compiled: Vec::with_capacity(24),
+            history_hour_reused: Vec::with_capacity(24),
+            routes_local: 0,
+            routes_cloud: 0,
+            routes_midtier: 0,
+            intent_stats: std::collections::HashMap::new(),
+            model_stats: std::collections::HashMap::new(),
+            upstream_stats: std::collections::HashMap::new(),
+            last_request: None,
+            request_history: Vec::with_capacity(200),
+            session_cost_usd: 0.0,
+            last_request_cost_usd: 0.0,
+        };
+        self.hour_buckets.clear();
+    }
+
     fn persisted_state(&self) -> PersistedCollectorState {
         PersistedCollectorState {
             snapshot: self.snapshot.clone(),
@@ -549,6 +582,7 @@ fn compile_result_from_cache(entry: &cache::CacheEntry) -> compiler::CompileResu
         intent: entry.intent.clone(),
         raw_tokens_estimate: entry.raw_tokens_estimate,
         compiled_tokens_estimate: entry.compiled_tokens_estimate,
+        optimizer_savings: 0, // not stored in cache; conservative default
         summary: entry.summary.clone(),
         compiled_context: entry.compiled_context.clone(),
     }
@@ -1225,6 +1259,7 @@ async fn compile(
         "intent": result.intent,
         "raw_tokens": result.raw_tokens_estimate,
         "compiled_tokens": result.compiled_tokens_estimate,
+        "optimizer_savings": result.optimizer_savings,
         "compiled_context": result.compiled_context,
         "summary": result.summary,
         "memory_reused_tokens": mem.reused_tokens,
@@ -2015,6 +2050,12 @@ async fn metrics_snapshot(State(state): State<SharedState>) -> Json<serde_json::
     Json(serde_json::to_value(collector.snapshot()).unwrap_or_default())
 }
 
+async fn metrics_reset(State(state): State<SharedState>) -> impl IntoResponse {
+    let mut collector = state.collector.lock().unwrap();
+    collector.reset();
+    StatusCode::NO_CONTENT
+}
+
 async fn metrics_stream(
     State(state): State<SharedState>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
@@ -2097,6 +2138,7 @@ async fn main() {
         .route("/v1/compile", post(compile))
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/metrics", get(metrics_snapshot))
+        .route("/v1/metrics/reset", delete(metrics_reset))
         .route("/v1/metrics/stream", get(metrics_stream))
         .layer(middleware::from_fn(require_api_key))
         .with_state(state.clone());
@@ -2124,8 +2166,9 @@ async fn main() {
     println!("  GET  /v1/providers          — list configured providers + runtime details");
     println!("  GET  /v1/runtime/client-context — read live upstream client context");
     println!("  POST /v1/runtime/client-context — update live upstream client context");
-    println!("  GET  /v1/metrics            — JSON snapshot");
-    println!("  GET  /v1/metrics/stream     — SSE live stream");
+    println!("  GET    /v1/metrics            — JSON snapshot");
+    println!("  DELETE /v1/metrics/reset     — reset all counters");
+    println!("  GET    /v1/metrics/stream    — SSE live stream");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

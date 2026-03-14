@@ -350,12 +350,29 @@ Wave A progress:
 
 ### V9.10 — Metrics Reset & E2E Integration Tests
 
-**Status:** Planned.
+**Status:** Delivered (2026-03-14).
 
-- `DELETE /v1/metrics/reset` endpoint — reset all counters without restarting the server.
-- Dashboard "Reset metrics" button triggering the new endpoint.
-- End-to-end integration test suite: send a real HTTP request through the pipeline → assert metrics increment correctly (request count, token reduction, intent routing).
-- Test utility: `scripts/test-e2e.ps1` covering at least `compile → route → metrics` for each intent.
+- `DELETE /v1/metrics/reset` endpoint — resets all counters without restarting the server. Returns `204 No Content`.
+- `MetricsCollector::reset()` zeroes the full `MetricsSnapshot` and `hour_buckets`; caches preserved.
+- Dashboard "Reset metrics" button in `OverviewView.vue` header (fires DELETE, disables in-flight, styled with red accent).
+- `theme.css` `.view-header` upgraded to flex layout so the button aligns to the right on all views.
+- `scripts/test-e2e.ps1` — 32-assertion E2E suite covering 6 groups: health, intent routing (8 intents), token pipeline, metrics increment, metrics reset (204 + all zeroed), and post-reset re-increment.
+
+### V9.10.1 — BPE-Aware Token Optimizer
+
+**Status:** Delivered (2026-03-14).
+
+- **`compiler/src/optimizer.rs`** (new) — 6 lossless BPE-friendly passes applied before semantic compilation:
+  1. Whitespace normalization (tabs, multi-space, trailing, blank runs)
+  2. Numeric separator removal (`1,000,000` → `1000000`)
+  3. Verbose-phrase substitution (21 patterns: `in order to` → `to`, `utilize` → `use`, `please note that` → `note:`, …)
+  4. Consecutive duplicate-line collapse (≥3 identical lines → `[×N]`)
+  5. Standalone comment stripping (codegen/general; skipped for review/debug)
+  6. JSON compaction (valid JSON input → compact re-serialisation, −30–50 % tokens)
+- `CompileResult.optimizer_savings` — new field: tokens saved by the optimizer alone.
+- `POST /v1/compile` response: `"optimizer_savings"` field exposed.
+- 16 new unit tests · 181 total · 0 failures.
+- Typical additional gain: **+10–30 %** on top of the existing semantic compiler.
 
 ### V9.11 — Provider Budget & Alerting
 

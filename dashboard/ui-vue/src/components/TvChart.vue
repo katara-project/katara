@@ -78,7 +78,7 @@ const props = withDefaults(defineProps<{
 const uid = Math.random().toString(36).slice(2, 8)
 const padL = 8
 const padR = 8
-const padT = 12
+const padT = 22   // extra top room so spline overshoot never clips
 const padB = 24
 
 const chartWrap = ref<HTMLElement | null>(null)
@@ -96,6 +96,12 @@ const resolvedColors = computed(() =>
 
 const gMax = computed(() => Math.max(...props.series.flatMap((s: Series) => s.data)))
 const gMin = computed(() => Math.min(...props.series.flatMap((s: Series) => s.data)))
+
+// Add 12% headroom above gMax so Catmull-Rom spline overshoot never clips at the top.
+const gMaxPadded = computed(() => {
+  const range = (gMax.value - gMin.value) || gMax.value || 1
+  return gMax.value + range * 0.12
+})
 
 const gridY = computed(() => {
   const n = 4
@@ -125,7 +131,7 @@ const visibleLabels = computed(() => {
 })
 
 const seriesData = computed(() => {
-  const range = (gMax.value - gMin.value) || 1
+  const range = (gMaxPadded.value - gMin.value) || 1
   return props.series.map((s: Series) =>
     s.data.map((v: number, i: number) => ({
       x: padL + (i / Math.max(s.data.length - 1, 1)) * (props.width - padL - padR),
@@ -262,6 +268,7 @@ function exportPng() {
   display: block;
   cursor: crosshair;
   touch-action: none;
+  overflow: visible; /* safety net: spline overshoot never hard-clips */
 }
 .tv-labels {
   display: flex;

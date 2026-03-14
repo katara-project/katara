@@ -5,6 +5,9 @@
         <h2>Overview</h2>
         <p class="muted">A visual control plane for AI traffic and context optimization.</p>
       </div>
+      <button class="reset-btn" :disabled="resetting" @click="resetMetrics">
+        {{ resetting ? 'Resetting…' : 'Reset metrics' }}
+      </button>
     </header>
     <div class="metrics-grid">
       <MetricCard label="Raw Tokens" :value="metrics.rawTokens.toLocaleString()" hint="Estimated before compilation" accent="warn">
@@ -280,6 +283,17 @@ import SparklineChart from '../components/SparklineChart.vue'
 import TvChart from '../components/TvChart.vue'
 
 const metrics = useMetricsStore()
+
+const resetting = ref(false)
+async function resetMetrics() {
+  if (resetting.value) return
+  resetting.value = true
+  try {
+    await fetch('/v1/metrics/reset', { method: 'DELETE' })
+  } finally {
+    resetting.value = false
+  }
+}
 const configuredAssistantModelLabel = import.meta.env.VITE_ASSISTANT_MODEL_LABEL || 'External assistant or client model'
 
 // Sparklines: direct SSE history arrays (reactive)
@@ -561,6 +575,25 @@ const intentRows = computed(() => {
 </script>
 
 <style scoped>
+.reset-btn {
+  align-self: flex-start;
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 80, 80, 0.12);
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+.reset-btn:hover:not(:disabled) {
+  background: rgba(255, 80, 80, 0.22);
+}
+.reset-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .chart-section {
   margin-top: 20px;
 }

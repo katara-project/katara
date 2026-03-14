@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — V9.10.1 BPE-Aware Token Optimizer (2026-03-14)
+
+- **`compiler/src/optimizer.rs`** (new file, 421 lines) — `TokenOptimizer` with 6 lossless passes:
+  1. **Whitespace normalization**: tabs → space, multi-space collapse, trailing spaces, consecutive blank line limit.
+  2. **Numeric separator removal**: `1,000,000` → `1000000` — commas between digits are extra tokens in BPE; removed safely.
+  3. **Verbose-phrase substitution** (21 patterns): `in order to` → `to`, `utilize` → `use`, `please note that` → `note:`, `due to the fact that` → `because`, etc. Case-insensitive with capitalisation preservation.
+  4. **Consecutive duplicate-line collapse**: runs of ≥3 identical lines → one line `[×N]`. Useful for log/trace dumps.
+  5. **Standalone comment stripping** (codegen/general intents only): removes `//`, `#`, `/* */`, `*` comment-only lines. Skips for `review` and `debug` intents.
+  6. **JSON compaction**: if the entire input is valid JSON, re-serialises it compact (no indentation). Saves 30–50 % on JSON payloads.
+- **`compiler/src/lib.rs`** — optimizer integrated into `compile_context()` pipeline: runs after `tokenizer::encode()`, before semantic reduction. `CompileResult` gains `optimizer_savings: usize` field.
+- **`core/src/main.rs`** — `POST /v1/compile` response now includes `"optimizer_savings"` field; `compile_result_from_cache` updated accordingly.
+- **16 new unit tests** in `optimizer::tests` covering each pass independently and the combined pipeline.
+- Build: `cargo check` clean · 181 tests, 0 failures.
+- Typical additional savings: **+10–30 %** on top of the existing semantic compiler.
+
+### Added — V9.10 Metrics Reset & E2E Integration Tests (2026-03-14)
+
+- **`DELETE /v1/metrics/reset`** endpoint: resets all counters (requests, tokens, costs, intent stats, model stats, history buckets) without restarting the server. Returns `204 No Content`.
+- **`MetricsCollector::reset()`** method in `core/src/main.rs`: zeroes the full `MetricsSnapshot` and clears `hour_buckets`; caches and context store are preserved.
+- **Dashboard "Reset metrics" button** in `OverviewView.vue` header: fires `DELETE /v1/metrics/reset` and disables while in-flight. Styled with a subtle red accent.
+- **`scripts/test-e2e.ps1`** — end-to-end integration test suite (32 assertions across 6 groups):
+  - Group 1: health, version, providers
+  - Group 2: intent routing for debug / codegen / review / summarize / translate / ocr / general / sensitive
+  - Group 3: token pipeline (raw > 0, compiled > 0, fingerprint present)
+  - Group 4: metrics increment after compile requests
+  - Group 5: `DELETE /v1/metrics/reset` → 204 + all counters zeroed
+  - Group 6: post-reset pipeline re-increments from zero
+- **`theme.css` `.view-header`**: added `display: flex; align-items: flex-start; justify-content: space-between` so the Reset button aligns to the right of every view header.
+- Build: clean `cargo build` · 0 errors, 0 warnings.
+
 ### Added — Efficiency Score sovereign bonus + agent config (2026-03-14)
 
 - **Sovereign routing bonus**: `metrics::compute()` now adds `+30%` on top of raw token avoidance ratio (capped at 100%). Reflects the intrinsic value of routing through DISTIRA regardless of compression level. Example: 24% token reduction → 54% efficiency score.

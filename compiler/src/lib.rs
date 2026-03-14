@@ -1,10 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+pub mod optimizer;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompileResult {
     pub intent: String,
     pub raw_tokens_estimate: usize,
     pub compiled_tokens_estimate: usize,
+    /// Tokens saved by the BPE optimizer pass alone (before semantic compilation).
+    pub optimizer_savings: usize,
     pub summary: String,
     pub compiled_context: String,
 }
@@ -87,28 +91,34 @@ pub fn compile_context(raw: &str) -> CompileResult {
     // V9.5: encode input for optimal tokenization (Unicode normalization,
     // invisible char removal, whitespace collapsing) before any measurement.
     let encoded = tokenizer::encode(raw);
-    let raw = encoded.as_str();
-    let raw_tokens_estimate = token_count(raw);
-    // Target = raw/3, minimum 16 tokens (≈64 chars), capped at raw so we
-    // never target more than the input itself.  The floor of 16 prevents
-    // over-truncation of small inputs while still giving ~67% compression
-    // on realistic multi-turn chat contexts (100+ tokens).
-    let target_tokens = raw_tokens_estimate
+    let raw_encoded = encoded.as_str();
+    let raw_tokens_estimate = token_count(raw_encoded);
+
+    // V9.10.1: BPE optimizer pass — lossless lexical transformations that
+    // reduce token count before semantic compilation.
+    let intent = detect_intent(raw_encoded);
+    let optimized = optimizer::optimize(raw_encoded, &intent);
+    let optimized_tokens = token_count(&optimized);
+    let optimizer_savings = raw_tokens_estimate.saturating_sub(optimized_tokens);
+
+    // Compile the already-optimized text (double savings: optimizer + semantics).
+    // Target = optimized/3, minimum 16 tokens, capped at optimized.
+    let target_tokens = optimized_tokens
         .saturating_div(3)
         .max(16)
-        .min(raw_tokens_estimate);
-    let intent = detect_intent(raw);
+        .min(optimized_tokens);
     // Reserve budget for the intent marker that shape_by_intent prepends so the
     // final compiled_context never exceeds target_tokens due to marker overhead.
     let marker_cost = token_count(intent_marker(&intent));
     let truncation_target = target_tokens.saturating_sub(marker_cost).max(1);
-    let compiled_context = build_compiled_context(raw, &intent, truncation_target);
+    let compiled_context = build_compiled_context(&optimized, &intent, truncation_target);
     let compiled_tokens_estimate = token_count(&compiled_context);
 
     CompileResult {
         intent: intent.clone(),
         raw_tokens_estimate,
         compiled_tokens_estimate,
+        optimizer_savings,
         summary: build_summary(&intent, raw_tokens_estimate, compiled_tokens_estimate),
         compiled_context,
     }
