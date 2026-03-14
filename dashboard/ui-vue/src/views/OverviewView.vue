@@ -225,6 +225,7 @@
               <th>Quality</th>
               <th>Requests</th>
               <th>Saved Tokens</th>
+              <th>Latency</th>
               <th>Efficiency</th>
               <th>Sovereign</th>
             </tr>
@@ -242,6 +243,10 @@
               <td>{{ entry.requests }}</td>
               <td>{{ entry.savedTokens.toLocaleString() }}</td>
               <td>
+                <span v-if="entry.avgLatencyMs > 0" class="latency-badge">{{ entry.avgLatencyMs }} ms</span>
+                <span v-else class="muted">—</span>
+              </td>
+              <td>
                 <strong>{{ entry.efficiency }}%</strong>
               </td>
               <td>
@@ -249,7 +254,7 @@
               </td>
             </tr>
             <tr v-if="!modelRows.length">
-              <td colspan="8" class="muted">No model data yet. Send a few requests to populate live stats.</td>
+              <td colspan="9" class="muted">No model data yet. Send a few requests to populate live stats.</td>
             </tr>
           </tbody>
         </table>
@@ -418,6 +423,7 @@ const modelRows = computed(() => {
         routeLabel: route.routeLabel,
         routeClass: route.routeClass,
         qualityTier: qualityTier(stat.provider),
+        avgLatencyMs: Math.round(stat.avg_latency_ms ?? 0),
       }
     })
     .sort((a, b) => b.requests - a.requests)
@@ -938,6 +944,18 @@ const intentRows = computed(() => {
 .quality-pill.low {
   background: rgba(150, 150, 150, 0.12);
   color: #999;
+}
+
+.latency-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(96, 156, 255, 0.10);
+  color: #8ab6ff;
+  font-variant-numeric: tabular-nums;
 }
 
 .status-pill {

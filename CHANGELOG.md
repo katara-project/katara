@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — V9.16 Latency-Aware Routing (2026-03-14)
+
+- **`router/choose_provider_latency_aware()`** — collects all within-budget candidates for an intent, ranks by rolling average latency, picks the fastest; providers with no measurement get `f64::MAX` and fall back to priority order; sensitive override bypasses latency logic entirely.
+- **`core/RecordEntry`** — `latency_ms: u64` field; 0 for cache hits and compile-only requests.
+- **`core/MetricsCollector`** — `provider_latency: HashMap<String, (f64, u64)>` rolling sum+count per provider key; `avg_latency_by_provider()` accessor returns `HashMap<String, f64>`.
+- **`core/ModelStats`** — `avg_latency_ms`, `latency_sum_ms`, `latency_samples` fields; serialized in SSE metrics stream.
+- **`core/chat_completions`** — `std::time::Instant` timing around both `forward_stream` and `forward` adapter calls; measured latency recorded per request.
+- **`core/list_providers`** — `/v1/providers` response enriched with `avg_latency_ms` per provider.
+- **`dashboard/OverviewView.vue`** — Latency column in Live AI Efficiency table with `.latency-badge` pill (`N ms` / `—`).
+- **`router` tests** — 3 new: `latency_aware_returns_valid_decision`, `latency_aware_prefers_faster_provider`, `latency_aware_sensitive_ignores_latency`. Router suite: 8 → 11 tests.
+
 ### Added — V9.15 Quality-Tier Routing + Conciseness Injection (2026-03-14)
 
 - **`router/ProviderConfig`** — `quality_tier: Option<String>` ("low" | "standard" | "high", serde default absent = "standard") and `fallback_chain: Vec<String>` (per-provider ordered fallback; empty = use global chain).

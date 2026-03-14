@@ -356,6 +356,106 @@ impl RouterConfig {
         self.concise_mode
     }
 
+    /// Latency-aware routing. Like `choose_provider_with_budget` but when
+    /// multiple candidates are available (budget not exhausted), the one with
+    /// the lowest known average latency is preferred.
+    /// `avg_latency` maps provider key → average response time in ms.
+    /// Providers with no measured latency are treated as having infinite latency
+    /// so that any measured provider wins over an unmeasured one — except when
+    /// all candidates are unmeasured, in which case normal order is kept.
+    pub fn choose_provider_latency_aware(
+        &self,
+        intent: &str,
+        sensitive: bool,
+        daily_counts: &HashMap<String, u64>,
+        avg_latency: &HashMap<String, f64>,
+    ) -> RouteDecision {
+        if sensitive {
+            return self.choose_provider_with_budget(intent, sensitive, daily_counts);
+        }
+
+        let preferred = if let Some(name) = self.task_routing.get(intent) {
+            name.clone()
+        } else {
+            self.default_provider.clone()
+        };
+
+        let per_provider_chain: Vec<String> = self
+            .providers
+            .get(&preferred)
+            .map(|cfg| cfg.fallback_chain.clone())
+            .unwrap_or_default();
+        let mut candidate_keys: Vec<String> = vec![preferred.clone()];
+        if per_provider_chain.is_empty() {
+            candidate_keys.push(self.default_provider.clone());
+            candidate_keys.push(self.fallback_provider.clone());
+        } else {
+            candidate_keys.extend(per_provider_chain);
+            candidate_keys.push(self.fallback_provider.clone());
+        }
+
+        // Collect all available (within-budget) candidates.
+        let mut seen = std::collections::HashSet::new();
+        let mut available: Vec<(&str, &ProviderConfig, f64)> = Vec::new();
+        for key in &candidate_keys {
+            let key = key.as_str();
+            if !seen.insert(key) {
+                continue;
+            }
+            if let Some(cfg) = self.providers.get(key) {
+                let budget = cfg.max_requests_per_day;
+                let used = daily_counts.get(key).copied().unwrap_or(0);
+                if budget == 0 || used < budget {
+                    let lat = avg_latency.get(key).copied().unwrap_or(f64::MAX);
+                    available.push((key, cfg, lat));
+                }
+            }
+        }
+
+        if let Some((key, cfg, _)) = available
+            .iter()
+            .min_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal))
+        {
+            // Only prefer by latency if we actually have a measured value
+            // for the fastest candidate (not f64::MAX placeholder).
+            let all_unmeasured = available.iter().all(|(_, _, lat)| *lat == f64::MAX);
+            let chosen = if all_unmeasured {
+                // Fall back to normal priority order (first available).
+                available[0].0
+            } else {
+                key
+            };
+            let cfg = self.providers.get(chosen).unwrap_or(cfg);
+            let reason = if chosen == preferred && self.task_routing.contains_key(intent) {
+                format!("Intent [{intent}] → routed to {chosen}.")
+            } else if avg_latency.contains_key(chosen) {
+                format!(
+                    "Latency-aware → {chosen} ({:.0}ms avg).",
+                    avg_latency[chosen]
+                )
+            } else {
+                format!("Default route → {chosen}.")
+            };
+            return RouteDecision {
+                provider: chosen.to_string(),
+                model: cfg.model.clone().unwrap_or_default(),
+                base_url: cfg.base_url.clone(),
+                reason,
+                api_key_env: cfg.api_key_env.clone(),
+            };
+        }
+
+        // All budgets exhausted.
+        let (name, config) = self.resolve_provider(&self.fallback_provider);
+        RouteDecision {
+            provider: name.clone(),
+            model: config.model.clone().unwrap_or_default(),
+            base_url: config.base_url.clone(),
+            reason: format!("All budgets exhausted → fallback to {name}."),
+            api_key_env: config.api_key_env.clone(),
+        }
+    }
+
     /// Estimate the USD cost of a request for the given provider.
     /// `input_tokens` and `output_tokens` should be the estimated token counts.
     pub fn cost_estimate_usd(
@@ -442,5 +542,40 @@ mod tests {
         let summaries = cfg.list_provider_summaries();
         assert!(!summaries.is_empty());
         assert!(summaries.iter().any(|summary| !summary.model.is_empty()));
+    }
+
+    #[test]
+    fn latency_aware_returns_valid_decision() {
+        let cfg = RouterConfig::defaults();
+        // No latency data → falls back to normal priority order.
+        let d =
+            cfg.choose_provider_latency_aware("general", false, &HashMap::new(), &HashMap::new());
+        assert!(!d.provider.is_empty());
+        assert!(d.base_url.starts_with("http"));
+    }
+
+    #[test]
+    fn latency_aware_prefers_faster_provider() {
+        let cfg = RouterConfig::defaults();
+        let daily_counts = HashMap::new();
+        // Assign higher latency to the preferred provider and lower to the fallback.
+        let mut latency: HashMap<String, f64> = HashMap::new();
+        latency.insert("ollama-local".into(), 500.0); // slow
+        latency.insert("openai-compatible".into(), 50.0); // fast
+        let d = cfg.choose_provider_latency_aware("general", false, &daily_counts, &latency);
+        // Should route to openai-compatible (faster) even though ollama-local is preferred by intent.
+        assert_eq!(d.provider, "openai-compatible");
+        assert!(d.reason.contains("Latency-aware"));
+    }
+
+    #[test]
+    fn latency_aware_sensitive_ignores_latency() {
+        let cfg = RouterConfig::defaults();
+        let mut latency: HashMap<String, f64> = HashMap::new();
+        latency.insert("openai-compatible".into(), 1.0); // fastest
+        let d = cfg.choose_provider_latency_aware("general", true, &HashMap::new(), &latency);
+        // Sensitive: must always be local regardless of latency.
+        assert_eq!(d.provider, "ollama-local");
+        assert!(d.reason.contains("Sensitive"));
     }
 }

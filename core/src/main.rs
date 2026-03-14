@@ -42,6 +42,15 @@ struct ModelStats {
     sovereign_requests: u64,
     non_sovereign_requests: u64,
     sovereign_ratio: f32,
+    /// Rolling average latency in ms for requests routed to this provider/model pair.
+    #[serde(default)]
+    avg_latency_ms: f64,
+    /// Accumulated latency sum for rolling average computation.
+    #[serde(default)]
+    latency_sum_ms: f64,
+    /// Number of latency samples (non-zero) included in avg_latency_ms.
+    #[serde(default)]
+    latency_samples: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,6 +168,8 @@ struct MetricsCollector {
     daily_provider_counts: HashMap<String, u64>,
     /// UTC midnight epoch for the current day window.
     daily_reset_epoch: u64,
+    /// Per-provider rolling latency: (sum_ms, count). Used for latency-aware routing.
+    provider_latency: HashMap<String, (f64, u64)>,
     persistence_path: PathBuf,
 }
 
@@ -193,6 +204,9 @@ struct RecordEntry {
     scope: WorkspaceScope,
     /// Estimated cost of this request in USD.
     cost_usd: f64,
+    /// Measured wall-clock latency of the LLM provider round-trip (ms).
+    /// 0 for cache hits.
+    latency_ms: u64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -253,6 +267,7 @@ impl MetricsCollector {
             hour_buckets: HashMap::new(),
             daily_provider_counts: HashMap::new(),
             daily_reset_epoch: now_epoch() / 86400 * 86400,
+            provider_latency: HashMap::new(),
             persistence_path,
         };
 
@@ -279,6 +294,7 @@ impl MetricsCollector {
             upstream,
             scope,
             cost_usd,
+            latency_ms,
         } = e;
 
         // V9.11 — Daily budget tracking: reset counts at UTC midnight.
@@ -291,6 +307,16 @@ impl MetricsCollector {
             .daily_provider_counts
             .entry(provider.clone())
             .or_insert(0) += 1;
+
+        // V9.16 — Rolling latency tracking (EMA-style sum/count per provider).
+        if latency_ms > 0 {
+            let entry = self
+                .provider_latency
+                .entry(provider.clone())
+                .or_insert((0.0, 0));
+            entry.0 += latency_ms as f64;
+            entry.1 += 1;
+        }
 
         let s = &mut self.snapshot;
         let ts = now_epoch();
@@ -395,6 +421,9 @@ impl MetricsCollector {
             sovereign_requests: 0,
             non_sovereign_requests: 0,
             sovereign_ratio: 0.0,
+            avg_latency_ms: 0.0,
+            latency_sum_ms: 0.0,
+            latency_samples: 0,
         });
         model_entry.requests += 1;
         model_entry.raw_tokens += raw;
@@ -421,6 +450,13 @@ impl MetricsCollector {
         } else {
             (model_entry.sovereign_requests as f32 / model_total_routes as f32) * 100.0
         };
+        // V9.16 — per-model latency accumulation.
+        if latency_ms > 0 {
+            model_entry.latency_sum_ms += latency_ms as f64;
+            model_entry.latency_samples += 1;
+            model_entry.avg_latency_ms =
+                model_entry.latency_sum_ms / model_entry.latency_samples as f64;
+        }
 
         let has_upstream_metadata = upstream.client_app.is_some()
             || upstream.provider.is_some()
@@ -497,6 +533,16 @@ impl MetricsCollector {
 
     fn snapshot(&self) -> &MetricsSnapshot {
         &self.snapshot
+    }
+
+    /// Returns a map of provider key → average latency in milliseconds.
+    /// Only providers that have received at least one timed request are included.
+    fn avg_latency_by_provider(&self) -> HashMap<String, f64> {
+        self.provider_latency
+            .iter()
+            .filter(|(_, (_, count))| *count > 0)
+            .map(|(k, (sum, count))| (k.clone(), sum / *count as f64))
+            .collect()
     }
 
     fn reset(&mut self) {
@@ -1200,9 +1246,31 @@ async fn set_runtime_client_context(
 }
 
 async fn list_providers(State(state): State<SharedState>) -> Json<serde_json::Value> {
+    let latency_map = {
+        let collector = state.collector.lock().unwrap_or_else(|e| e.into_inner());
+        collector.avg_latency_by_provider()
+    };
+    let mut summaries: Vec<serde_json::Value> = state
+        .router_config
+        .list_provider_summaries()
+        .into_iter()
+        .map(|s| {
+            let avg_ms = latency_map.get(&s.key).copied().unwrap_or(0.0);
+            let mut v = serde_json::to_value(&s).unwrap_or_default();
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert("avg_latency_ms".into(), serde_json::json!(avg_ms));
+            }
+            v
+        })
+        .collect();
+    summaries.sort_by(|a, b| {
+        a.get("key")
+            .and_then(|v| v.as_str())
+            .cmp(&b.get("key").and_then(|v| v.as_str()))
+    });
     Json(json!({
         "providers": state.router_config.list_providers(),
-        "provider_details": state.router_config.list_provider_summaries()
+        "provider_details": summaries
     }))
 }
 
@@ -1265,10 +1333,11 @@ async fn compile(
         &runtime_context,
         &state.workspace_context,
     );
-    let route = state.router_config.choose_provider_with_budget(
+    let route = state.router_config.choose_provider_latency_aware(
         &result.intent,
         sensitive,
         &collector.daily_provider_counts,
+        &collector.avg_latency_by_provider(),
     );
     let upstream = upstream_identity(
         payload
@@ -1310,6 +1379,7 @@ async fn compile(
             result.compiled_tokens_estimate,
             0,
         ),
+        latency_ms: 0, // compile endpoint has no LLM round-trip
     });
     drop(collector);
 
@@ -1443,15 +1513,17 @@ async fn chat_completions(
     };
 
     // Determine route early so compiled_total uses model-aware token counting.
-    // V9.11: snapshot daily counts before locking for the cache check.
-    let daily_counts = {
+    // V9.16: snapshot daily counts + latency map before locking for the cache check.
+    let (daily_counts, latency_map) = {
         let c = state.collector.lock().unwrap_or_else(|e| e.into_inner());
-        c.daily_provider_counts.clone()
+        (c.daily_provider_counts.clone(), c.avg_latency_by_provider())
     };
-    let route =
-        state
-            .router_config
-            .choose_provider_with_budget(&result.intent, sensitive, &daily_counts);
+    let route = state.router_config.choose_provider_latency_aware(
+        &result.intent,
+        sensitive,
+        &daily_counts,
+        &latency_map,
+    );
     let model = payload.model.clone().unwrap_or_else(|| route.model.clone());
 
     // ── 4. Measure COMPILED = actual forwarded token count ────────────────────
@@ -1543,6 +1615,7 @@ async fn chat_completions(
                 upstream: upstream.clone(),
                 scope: scope.clone(),
                 cost_usd: 0.0, // cache hit — no provider call
+                latency_ms: 0,
             });
 
             if stream {
@@ -1597,6 +1670,7 @@ async fn chat_completions(
 
     // 4. Forward to LLM provider
     if stream {
+        let t_start = std::time::Instant::now();
         return match adapters::forward_stream(
             &route.base_url,
             &model,
@@ -1607,6 +1681,7 @@ async fn chat_completions(
         .await
         {
             Ok(response) => {
+                let latency_ms = t_start.elapsed().as_millis() as u64;
                 {
                     let mut collector = state.collector.lock().unwrap();
                     collector.record(RecordEntry {
@@ -1628,6 +1703,7 @@ async fn chat_completions(
                             compiled_total,
                             0,
                         ),
+                        latency_ms,
                     });
                 }
 
@@ -1733,6 +1809,7 @@ async fn chat_completions(
         };
     }
 
+    let t_start_fwd = std::time::Instant::now();
     match adapters::forward(
         &route.base_url,
         &model,
@@ -1743,6 +1820,7 @@ async fn chat_completions(
     .await
     {
         Ok(fwd) => {
+            let latency_ms_fwd = t_start_fwd.elapsed().as_millis() as u64;
             // V9.5: decode LLM output to fix BPE reconstruction artifacts
             // (stray spaces before punctuation, CRLF, double spaces, CJK spacing).
             let decoded_content = tokenizer::decode_for(&fwd.content, token_family);
@@ -1776,6 +1854,7 @@ async fn chat_completions(
                         compiled_total,
                         fwd.prompt_tokens.unwrap_or(0) + fwd.completion_tokens.unwrap_or(0),
                     ),
+                    latency_ms: latency_ms_fwd,
                 });
             }
 
@@ -2100,6 +2179,7 @@ mod tests {
             upstream: UpstreamIdentity::default(),
             scope: WorkspaceScope::default(),
             cost_usd: 0.0,
+            latency_ms: 0,
         });
 
         let mut restored = MetricsCollector::new();

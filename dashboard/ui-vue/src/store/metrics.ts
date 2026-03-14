@@ -18,6 +18,7 @@ export interface ModelStat {
   sovereign_requests: number
   non_sovereign_requests: number
   sovereign_ratio: number
+  avg_latency_ms?: number
 }
 
 export interface UpstreamStat {

@@ -424,11 +424,16 @@ Requesting the LLM to be concise in plain language (no emojis, no markdown decor
 
 ### V9.16 — Latency-Aware Routing
 
-**Status:** Planned.
+**Status:** Delivered (2026-03-14 — VERSION 9.16.0).
 
-- Track rolling average response latency per provider in `MetricsCollector`.
-- Expose `avg_latency_ms` in `/v1/providers` response and dashboard.
-- When two providers are equal for an intent, prefer the faster one.
+- Rolling average response latency tracked per provider in `MetricsCollector` (`provider_latency: HashMap<String, (f64, u64)>` — sum_ms + count).
+- `choose_provider_latency_aware()` on `RouterConfig`: collects all within-budget candidates, picks minimum by avg latency; unmeasured providers get `f64::MAX` placeholder; when all are unmeasured falls back to priority order; sensitive override bypasses latency entirely.
+- `avg_latency_by_provider()` accessor on `MetricsCollector` — computes live average on request.
+- `core/chat_completions` — `std::time::Instant` timing around both streaming (`forward_stream`) and non-streaming (`forward`) adapter calls; latency stored in `RecordEntry.latency_ms`.
+- `ModelStats` struct extended with `avg_latency_ms`, `latency_sum_ms`, `latency_samples`; emitted in SSE metrics stream.
+- `/v1/providers` enriched with per-provider `avg_latency_ms`.
+- Dashboard: Latency column in Live AI Efficiency table with `.latency-badge` pill.
+- 3 new router unit tests. Router suite: 8 → 11.
 
 ### V10 — Adaptive AI Optimization Network
 
