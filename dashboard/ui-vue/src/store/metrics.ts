@@ -18,6 +18,7 @@ export interface ModelStat {
   sovereign_requests: number
   non_sovereign_requests: number
   sovereign_ratio: number
+  avg_latency_ms?: number
 }
 
 export interface UpstreamStat {
@@ -79,6 +80,15 @@ export interface MetricsSnapshot {
   request_history: RequestLineage[]
   session_cost_usd?: number
   last_request_cost_usd?: number
+  alerts?: Array<{ type: string; provider?: string; message: string }>
+  stable_blocks?: number
+  context_reuse_ratio_pct?: number
+  context_blocks_summary?: Array<{
+    id: string
+    stability: number
+    token_count: number
+    intent: string
+  }>
 }
 
 const SSE_URL     = '/v1/metrics/stream'
@@ -117,6 +127,10 @@ export const useMetricsStore = defineStore('metrics', () => {
   const requestHistory = ref<RequestLineage[]>([])
   const sessionCostUsd = ref(0)
   const lastRequestCostUsd = ref(0)
+  const alerts = ref<Array<{ type: string; provider?: string; message: string }>>([])
+  const stableBlocks = ref(0)
+  const contextRatioPct = ref(0)
+  const contextBlocksSummary = ref<Array<{ id: string; stability: number; token_count: number; intent: string }>>([])
 
   const cacheHitRatio = computed(() => {
     const total = cacheHits.value + cacheMisses.value
@@ -186,6 +200,10 @@ export const useMetricsStore = defineStore('metrics', () => {
     requestHistory.value = s.request_history ?? []
     sessionCostUsd.value = s.session_cost_usd ?? 0
     lastRequestCostUsd.value = s.last_request_cost_usd ?? 0
+    alerts.value = s.alerts ?? []
+    stableBlocks.value = s.stable_blocks ?? 0
+    contextRatioPct.value = s.context_reuse_ratio_pct ?? 0
+    contextBlocksSummary.value = s.context_blocks_summary ?? []
     lastTs.value = s.ts
   }
 
@@ -314,6 +332,10 @@ export const useMetricsStore = defineStore('metrics', () => {
     requestHistory,
     sessionCostUsd,
     lastRequestCostUsd,
+    alerts,
+    stableBlocks,
+    contextRatioPct,
+    contextBlocksSummary,
     connect,
     disconnect,
   }

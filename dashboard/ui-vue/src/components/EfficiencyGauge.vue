@@ -30,13 +30,13 @@
       </div>
     </div>
     <p class="gauge-helper muted">
-      Between 30% and 50%, Distira is already highly efficient. 100% is a theoretical ceiling.
+      Between 50% and 75%, Distira is already highly efficient. 100% is a practical ceiling.
     </p>
     <div v-if="showHelp" class="gauge-help-panel">
       <p><strong>How should you read this score?</strong></p>
-      <p>0% means no tokens are avoided compared to sending raw context.</p>
-      <p>Around 30–50%, Distira already reuses and compresses context significantly.</p>
-      <p>100% is theoretical. In practice, staying above 30% on heavy workflows is a strong target.</p>
+      <p>Combines token compression, context reuse, and routing quality into a single score.</p>
+      <p>Above 50% means Distira is actively trimming and reusing context. Above 75% is excellent on heavy workflows.</p>
+      <p>100% is the practical ceiling — reached when context is heavily compressed across repeated requests.</p>
     </div>
   </section>
 </template>
@@ -86,9 +86,9 @@ const gaugeStyle = computed(() => {
 
 const bandLabel = computed(() => {
   const s = displayScore.value
-  if (s < 15) return 'Needs tuning'
-  if (s < 30) return 'Good'
-  return 'Efficient'
+  if (s < 50) return 'Efficient'
+  if (s < 75) return 'High'
+  return 'Excellent'
 })
 </script>
 

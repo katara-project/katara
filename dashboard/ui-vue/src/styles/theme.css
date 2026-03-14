@@ -183,6 +183,10 @@ a {
 
 .view-header {
   margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .view-header h2 {

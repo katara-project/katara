@@ -242,6 +242,18 @@ async function readBackendContext() {
   }
 }
 
+// -- Auto-compile helper --------------------------------
+// Fires a background compile call for session tracking whenever any
+// distira tool is invoked. Never blocks the actual tool response.
+async function autoCompile(context, extra) {
+  try {
+    const meta = await buildUpstreamMetadata({}, extra ?? {});
+    callDistira("/v1/compile", "POST", { context, ...meta }).catch(() => {});
+  } catch {
+    // fire-and-forget — ignore all errors
+  }
+}
+
 // -- Create MCP Server ----------------------------------
 
 const server = new McpServer({
@@ -274,7 +286,7 @@ server.tool(
   }
 );
 
-// Tool: distira_chat
+// Tool: distira_chat  (compile is done server-side inside /v1/chat/completions)
 server.tool(
   "distira_chat",
   "Compile context through DISTIRA then forward to the best LLM provider (Ollama local, Mistral cloud, etc.). Returns an OpenAI-compatible chat completion with a distira section showing optimization stats.",
@@ -310,8 +322,8 @@ server.tool(
     upstreamProvider: z.string().optional().describe("Upstream provider label, for example 'Anthropic' or 'GitHub Copilot'."),
     upstreamModel: z.string().optional().describe("Upstream model label, for example 'Claude Sonnet 4.6' or 'GPT-5.4'."),
   },
-  async ({ clientApp, upstreamProvider, upstreamModel }) => {
-    const result = await callDistira("/v1/runtime/client-context", "POST", {
+  async ({ clientApp, upstreamProvider, upstreamModel }, extra) => {
+    autoCompile(`distira_set_client_context: ${clientApp ?? ""} ${upstreamProvider ?? ""} ${upstreamModel ?? ""}`.trim(), extra);\n    const result = await callDistira("/v1/runtime/client-context", "POST", {
       client_app: clientApp,
       upstream_provider: upstreamProvider,
       upstream_model: upstreamModel,
@@ -325,7 +337,8 @@ server.tool(
   "distira_providers",
   "List all LLM providers configured in DISTIRA.",
   {},
-  async () => {
+  async (_args, extra) => {
+    autoCompile("distira_providers: list configured providers", extra);
     const result = await callDistira("/v1/providers");
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
@@ -336,7 +349,8 @@ server.tool(
   "distira_metrics",
   "Get the current DISTIRA metrics snapshot: total requests, token counts, efficiency score, cache stats, routing breakdown, and per-intent statistics.",
   {},
-  async () => {
+  async (_args, extra) => {
+    autoCompile("distira_metrics: get current metrics snapshot", extra);
     const result = await callDistira("/v1/metrics");
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }

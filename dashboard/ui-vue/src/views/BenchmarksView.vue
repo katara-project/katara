@@ -25,7 +25,7 @@
           <span>{{ row.requests.toLocaleString() }}</span>
           <span>{{ row.raw.toLocaleString() }}</span>
           <span>{{ row.compiled.toLocaleString() }}</span>
-          <span class="bench-saved">&minus;{{ row.saved.toLocaleString() }}</span>
+          <span class="bench-saved">{{ row.saved > 0 ? '−' + row.saved.toLocaleString() : '—' }}</span>
           <span class="bench-pct">
             <span class="bench-bar" :style="{ width: row.reduction + '%' }"></span>
             {{ row.reduction }}%
@@ -109,9 +109,9 @@ const benchmarks = computed(() => {
   const stats = metrics.intentStats
   return Object.entries(stats)
     .map(([intent, s]) => {
-      const saved = s.raw_tokens - s.compiled_tokens
+      const saved = Math.max(0, s.raw_tokens - s.compiled_tokens)
       const reduction = s.raw_tokens > 0
-        ? Math.round((saved / s.raw_tokens) * 1000) / 10
+        ? Math.max(0, Math.round((saved / s.raw_tokens) * 1000) / 10)
         : 0
       return {
         intent: INTENT_LABELS[intent] ?? intent,

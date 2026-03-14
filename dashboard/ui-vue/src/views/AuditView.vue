@@ -92,6 +92,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useMetricsStore } from '../store/metrics'
+import { classifyRoute } from '../utils/providers'
 
 const metrics = useMetricsStore()
 const STORAGE_KEY = 'distira.runtimeAudit.filters.v1'
@@ -158,16 +159,7 @@ watch([tenantFilter, projectFilter, timeFilter, customFrom, customTo], () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
 })
 
-function classifyRoute(provider: string) {
-  const normalized = provider.toLowerCase()
-  if (normalized.includes('ollama') || normalized.includes('local')) {
-    return { routeLabel: 'Local sovereign', routeClass: 'local' }
-  }
-  if (normalized.includes('mistral')) {
-    return { routeLabel: 'Mid-tier', routeClass: 'midtier' }
-  }
-  return { routeLabel: 'Cloud', routeClass: 'cloud' }
-}
+// classifyRoute imported from ../utils/providers
 
 const tenantOptions = computed(() => {
   const values = new Set(

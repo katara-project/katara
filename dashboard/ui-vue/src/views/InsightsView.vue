@@ -154,11 +154,11 @@ const insights = computed(() => {
   const result: InsightItem[] = []
 
   // Dynamic efficiency guidance
-  if (metrics.efficiencyScore < 30 && metrics.totalRequests > 0) {
+  if (metrics.efficiencyScore < 50 && metrics.totalRequests > 0) {
     result.push({
-      title: 'Increase AI Efficiency Score',
+      title: 'Boost AI Efficiency Score',
       description:
-        'Your average score is below 30%. Chain short requests on the same context (review + codegen) instead of re-pasting large blocks to increase reuse.',
+        'Score is below 50%. Chain short requests on the same context (review + codegen) instead of re-pasting large blocks to increase reuse and compression.',
       severity: 'medium',
       category: 'Efficiency',
       impact: '+10–20% on recurring workflows',

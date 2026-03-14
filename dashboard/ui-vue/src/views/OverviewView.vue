@@ -5,7 +5,21 @@
         <h2>Overview</h2>
         <p class="muted">A visual control plane for AI traffic and context optimization.</p>
       </div>
+      <button class="reset-btn" :disabled="resetting" @click="resetMetrics">
+        {{ resetting ? 'Resetting…' : 'Reset metrics' }}
+      </button>
     </header>
+    <div v-if="metrics.alerts && metrics.alerts.length" class="alert-banner">
+      <div
+        v-for="(alert, idx) in metrics.alerts"
+        :key="idx"
+        class="alert-item"
+        :class="alert.type"
+      >
+        <span class="alert-icon">&#9888;</span>
+        <span>{{ alert.message }}</span>
+      </div>
+    </div>
     <div class="metrics-grid">
       <MetricCard label="Raw Tokens" :value="metrics.rawTokens.toLocaleString()" hint="Estimated before compilation" accent="warn">
         <SparklineChart :data="rawHistory" color="#ffa940" :height="40" />
@@ -18,13 +32,6 @@
       </MetricCard>
       <MetricCard label="Local Routing" :value="metrics.localRatio + '%'" hint="Requests kept local" accent="accent">
         <SparklineChart :data="localHistory" color="var(--accent)" :height="40" />
-      </MetricCard>
-      <MetricCard label="Cache Saved Tokens" :value="metrics.cacheSavedTokens.toLocaleString()" hint="Provider tokens avoided via cached responses" accent="primary">
-        <SparklineChart :data="cacheSavedHistory" color="var(--primary)" :height="40" />
-      </MetricCard>
-      <MetricCard label="Session Cost" :value="'$' + metrics.sessionCostUsd.toFixed(6)" hint="USD incurred this session" accent="warn">
-      </MetricCard>
-      <MetricCard label="Last Request Cost" :value="'$' + metrics.lastRequestCostUsd.toFixed(6)" hint="USD for the most recent request" accent="secondary">
       </MetricCard>
     </div>
     <div class="two-col">
@@ -215,8 +222,10 @@
               <th>Model</th>
               <th>Provider</th>
               <th>Route</th>
+              <th>Quality</th>
               <th>Requests</th>
               <th>Saved Tokens</th>
+              <th>Latency</th>
               <th>Efficiency</th>
               <th>Sovereign</th>
             </tr>
@@ -228,8 +237,15 @@
               <td>
                 <span class="route-pill" :class="entry.routeClass">{{ entry.routeLabel }}</span>
               </td>
+              <td>
+                <span class="quality-pill" :class="entry.qualityTier">{{ entry.qualityTier }}</span>
+              </td>
               <td>{{ entry.requests }}</td>
               <td>{{ entry.savedTokens.toLocaleString() }}</td>
+              <td>
+                <span v-if="entry.avgLatencyMs > 0" class="latency-badge">{{ entry.avgLatencyMs }} ms</span>
+                <span v-else class="muted">—</span>
+              </td>
               <td>
                 <strong>{{ entry.efficiency }}%</strong>
               </td>
@@ -238,7 +254,7 @@
               </td>
             </tr>
             <tr v-if="!modelRows.length">
-              <td colspan="7" class="muted">No model data yet. Send a few requests to populate live stats.</td>
+              <td colspan="9" class="muted">No model data yet. Send a few requests to populate live stats.</td>
             </tr>
           </tbody>
         </table>
@@ -266,12 +282,39 @@
       </div>
       <p v-else class="muted">No intent data yet. Send a few requests to see the distribution.</p>
     </section>
+
+    <!-- V10 — Adaptive Optimization Suggestions -->
+    <section class="card suggestions-section">
+      <div class="section-heading">
+        <div>
+          <h3>Optimization Suggestions</h3>
+          <p class="muted">V10 adaptive engine analyzes provider error rates and latency to surface actionable improvements.</p>
+        </div>
+        <button class="refresh-btn" @click="fetchSuggestions">Refresh</button>
+      </div>
+      <div v-if="suggestions.length" class="suggestions-list">
+        <div
+          v-for="(s, idx) in suggestions"
+          :key="idx"
+          class="suggestion-item"
+          :class="s.severity"
+        >
+          <span class="suggestion-icon">{{ s.severity === 'warning' ? '\u26A0' : '\u2139' }}</span>
+          <div class="suggestion-body">
+            <span class="suggestion-message">{{ s.message }}</span>
+            <span class="suggestion-meta">{{ s.provider }} · {{ s.metric }}: {{ s.value }}</span>
+          </div>
+        </div>
+      </div>
+      <p v-else class="muted">No suggestions yet. Suggestions appear after providers accumulate error or latency data.</p>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useMetricsStore } from '../store/metrics'
+import { classifyRoute, friendlyProvider, qualityTier } from '../utils/providers'
 import MetricCard from '../components/MetricCard.vue'
 import EfficiencyGauge from '../components/EfficiencyGauge.vue'
 import FlowVisualizer from '../components/FlowVisualizer.vue'
@@ -279,6 +322,40 @@ import SparklineChart from '../components/SparklineChart.vue'
 import TvChart from '../components/TvChart.vue'
 
 const metrics = useMetricsStore()
+
+const resetting = ref(false)
+async function resetMetrics() {
+  if (resetting.value) return
+  resetting.value = true
+  try {
+    await fetch('/v1/metrics/reset', { method: 'DELETE' })
+  } finally {
+    resetting.value = false
+  }
+}
+
+// V10 — Adaptive optimization suggestions
+interface Suggestion {
+  severity: 'warning' | 'info'
+  code: string
+  provider: string
+  metric: string
+  value: number
+  message: string
+}
+const suggestions = ref<Suggestion[]>([])
+async function fetchSuggestions() {
+  try {
+    const res = await fetch('/v1/suggestions')
+    if (res.ok) {
+      const data = await res.json()
+      suggestions.value = data.suggestions ?? []
+    }
+  } catch {
+    // Server not yet available — silently ignore
+  }
+}
+onMounted(fetchSuggestions)
 const configuredAssistantModelLabel = import.meta.env.VITE_ASSISTANT_MODEL_LABEL || 'External assistant or client model'
 
 // Sparklines: direct SSE history arrays (reactive)
@@ -292,13 +369,6 @@ const localHistory = computed(() => {
   return metrics.historyRaw.map((_: number, i: number) =>
     Math.round((metrics.routesLocal / Math.max(1, total)) * 100)
   )
-})
-
-const cacheSavedHistory = computed(() => {
-  if (!metrics.historyRaw.length) return [0]
-  const steps = metrics.historyRaw.length
-  const current = metrics.cacheSavedTokens
-  return Array.from({ length: steps }, (_, idx) => Math.round((current * (idx + 1)) / steps))
 })
 
 // TvChart: prefer true hourly buckets when available, fallback to legacy history.
@@ -378,16 +448,7 @@ const upstreamTableRows = computed(() => {
   }))
 })
 
-function classifyRoute(provider: string) {
-  const normalized = provider.toLowerCase()
-  if (normalized.includes('ollama') || normalized.includes('local')) {
-    return { routeLabel: 'Local sovereign', routeClass: 'local' }
-  }
-  if (normalized.includes('mistral')) {
-    return { routeLabel: 'Mid-tier', routeClass: 'midtier' }
-  }
-  return { routeLabel: 'Cloud', routeClass: 'cloud' }
-}
+// classifyRoute and friendlyProvider are imported from ../utils/providers
 
 const modelRows = computed(() => {
   return Object.entries(metrics.modelStats)
@@ -398,7 +459,8 @@ const modelRows = computed(() => {
       return {
         key,
         model: stat.model,
-        provider: stat.provider,
+        provider: friendlyProvider(stat.provider),
+        providerRaw: stat.provider,
         requests: stat.requests,
         savedTokens,
         efficiency: Math.round(stat.efficiency_score ?? 0),
@@ -409,6 +471,8 @@ const modelRows = computed(() => {
         sovereignClass: sovereignRatio >= 100 ? 'sovereign' : 'mixed',
         routeLabel: route.routeLabel,
         routeClass: route.routeClass,
+        qualityTier: qualityTier(stat.provider),
+        avgLatencyMs: Math.round(stat.avg_latency_ms ?? 0),
       }
     })
     .sort((a, b) => b.requests - a.requests)
@@ -568,6 +632,55 @@ const intentRows = computed(() => {
 </script>
 
 <style scoped>
+.reset-btn {
+  align-self: flex-start;
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 80, 80, 0.12);
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+.reset-btn:hover:not(:disabled) {
+  background: rgba(255, 80, 80, 0.22);
+}
+.reset-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.alert-banner {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.alert-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  border: 1px solid;
+}
+.alert-item.budget_exhausted {
+  background: rgba(255, 80, 80, 0.10);
+  border-color: rgba(255, 80, 80, 0.30);
+  color: #ff6b6b;
+}
+.alert-item.budget_warning {
+  background: rgba(255, 169, 64, 0.10);
+  border-color: rgba(255, 169, 64, 0.30);
+  color: #ffa940;
+}
+.alert-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
 .chart-section {
   margin-top: 20px;
 }
@@ -856,6 +969,44 @@ const intentRows = computed(() => {
   color: #8ab6ff;
 }
 
+.quality-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.quality-pill.high {
+  background: rgba(44, 255, 179, 0.12);
+  color: var(--accent);
+}
+
+.quality-pill.standard {
+  background: rgba(255, 196, 0, 0.12);
+  color: #ffd84d;
+}
+
+.quality-pill.low {
+  background: rgba(150, 150, 150, 0.12);
+  color: #999;
+}
+
+.latency-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(96, 156, 255, 0.10);
+  color: #8ab6ff;
+  font-variant-numeric: tabular-nums;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -1040,5 +1191,76 @@ const intentRows = computed(() => {
   .cvr-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── V10 Optimization Suggestions ─────────────────────── */
+.suggestions-section .section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.refresh-btn {
+  padding: 5px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid;
+  font-size: 0.87rem;
+}
+.suggestion-item.warning {
+  background: rgba(255, 169, 64, 0.08);
+  border-color: rgba(255, 169, 64, 0.28);
+}
+.suggestion-item.info {
+  background: rgba(40, 120, 255, 0.07);
+  border-color: rgba(40, 120, 255, 0.22);
+}
+
+.suggestion-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.suggestion-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.suggestion-message {
+  color: var(--foreground);
+  line-height: 1.4;
+}
+
+.suggestion-meta {
+  font-size: 0.77rem;
+  color: var(--muted);
+  font-family: monospace;
 }
 </style>

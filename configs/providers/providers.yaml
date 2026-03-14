@@ -22,6 +22,7 @@ providers:
     model: llama3:latest
     deployment: on-prem
     description: Llama 3 8B — general tasks, summarization
+    quality_tier: standard
     cost_per_1k_input_tokens: 0.0
     cost_per_1k_output_tokens: 0.0
 
@@ -31,6 +32,7 @@ providers:
     model: llama3.3:latest
     deployment: on-prem
     description: "Llama 3.3 70B — best open-source general model (Meta, 2025). ollama pull llama3.3"
+    quality_tier: high
     cost_per_1k_input_tokens: 0.0
     cost_per_1k_output_tokens: 0.0
 
@@ -40,6 +42,7 @@ providers:
     model: qwen2.5-coder:7b
     deployment: on-prem
     description: Qwen 2.5 Coder 7B — code generation, review
+    quality_tier: high
     cost_per_1k_input_tokens: 0.0
     cost_per_1k_output_tokens: 0.0
 
@@ -58,6 +61,7 @@ providers:
     model: mistral:7b-instruct
     deployment: on-prem
     description: Mistral 7B local — debug, analysis
+    quality_tier: standard
     cost_per_1k_input_tokens: 0.0
     cost_per_1k_output_tokens: 0.0
 
@@ -67,6 +71,7 @@ providers:
     model: deepseek-ocr:3b
     deployment: on-prem
     description: DeepSeek OCR 3B — optical character recognition
+    quality_tier: low
     cost_per_1k_input_tokens: 0.0
     cost_per_1k_output_tokens: 0.0
 
@@ -128,6 +133,7 @@ providers:
     deployment: cloud
     api_key_env: MISTRAL_API_KEY
     description: Mistral OCR 2512 cloud endpoint
+    quality_tier: high
     cost_per_1k_input_tokens: 0.001
     cost_per_1k_output_tokens: 0.001
 
@@ -138,6 +144,7 @@ providers:
     deployment: cloud
     api_key_env: OPENROUTER_API_KEY
     description: StepFun 3.5 Flash free cloud
+    quality_tier: standard
     cost_per_1k_input_tokens: 0.0
     cost_per_1k_output_tokens: 0.0
 
@@ -148,6 +155,7 @@ providers:
     deployment: cloud
     api_key_env: OPENROUTER_API_KEY
     description: Mistral Small 3.1 24B Instruct free cloud — summarize, translate
+    quality_tier: high
     cost_per_1k_input_tokens: 0.0
     cost_per_1k_output_tokens: 0.0
 

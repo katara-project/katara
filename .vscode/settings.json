@@ -1,4 +1,5 @@
 {
+  "chat.agent.enabled": true,
   "yaml.schemas": {},
   "yaml.validate": true,
   "yaml.customTags": [],

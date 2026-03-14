@@ -37,8 +37,11 @@
         >
           <div class="branch-bar" :style="{ width: branch.ratio + '%' }"></div>
           <div class="branch-content">
-            <SvgIcon :name="branch.icon" :size="20" class="branch-icon" />
-            <span class="branch-name">{{ branch.provider }}</span>
+            <SvgIcon :name="branch.icon" :size="18" class="branch-icon" />
+            <div class="branch-identity">
+              <span class="branch-name">{{ branch.provider }}</span>
+              <span class="branch-desc">{{ branch.desc }}</span>
+            </div>
             <span class="branch-tag">{{ branch.tag }}</span>
             <span class="branch-pct">{{ branch.ratio }}%</span>
           </div>
@@ -51,21 +54,15 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue'
 import { useMetricsStore } from '../store/metrics'
+import { classifyRoute } from '../utils/providers'
 import SvgIcon from './SvgIcon.vue'
 
 const metrics = useMetricsStore()
 
-function classifyRouteProvider(provider: string): 'local' | 'cloud' | 'midtier' {
-  const lower = provider.toLowerCase()
-  if (lower.includes('ollama') || lower.includes('local')) return 'local'
-  if (lower.includes('mistral')) return 'midtier'
-  return 'cloud'
-}
-
 const activeRouteClass = computed<null | 'local' | 'cloud' | 'midtier'>(() => {
   const last = metrics.lastRequest
   if (!last) return null
-  return classifyRouteProvider(last.routed_provider)
+  return classifyRoute(last.routed_provider).routeClass
 })
 
 const nowEpoch = ref(Math.floor(Date.now() / 1000))
@@ -126,7 +123,8 @@ const branches = computed(() => {
 
   return [
     {
-      provider: 'Local LLM',
+      provider: 'On-prem',
+      desc: 'Ollama · LM Studio · OpenWebUI',
       icon: 'home',
       tag: `${metrics.routesLocal} req`,
       ratio: localPct,
@@ -134,7 +132,8 @@ const branches = computed(() => {
       active: activeRouteClass.value === 'local',
     },
     {
-      provider: 'Cloud Providers',
+      provider: 'Cloud',
+      desc: 'OpenRouter · OpenAI · Mistral',
       icon: 'cloud',
       tag: `${metrics.routesCloud} req`,
       ratio: cloudPct,
@@ -142,7 +141,8 @@ const branches = computed(() => {
       active: activeRouteClass.value === 'cloud',
     },
     {
-      provider: 'Mid-tier Providers',
+      provider: 'Mid-tier',
+      desc: 'Self-hosted · hybrid',
       icon: 'globe',
       tag: `${metrics.routesMidtier} req`,
       ratio: midPct,
@@ -243,7 +243,8 @@ const branches = computed(() => {
   padding-top: 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
-.routing-panel h3 { font-size: 1rem; font-weight: 600; margin: 0 0 16px; color: var(--muted); }
+.routing-panel h3 { font-size: 1rem; font-weight: 600; margin: 0 0 12px; color: var(--muted); }
+
 .route-branches { display: flex; flex-direction: column; gap: 10px; }
 .route-branch {
   position: relative;
@@ -271,7 +272,9 @@ const branches = computed(() => {
   z-index: 1;
 }
 .branch-icon { color: var(--muted); flex-shrink: 0; }
-.branch-name { font-weight: 600; font-size: 0.9rem; flex: 1; }
+.branch-identity { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.branch-name { font-weight: 600; font-size: 0.9rem; }
+.branch-desc { font-size: 0.72rem; color: var(--muted); opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .branch-tag {
   padding: 2px 10px;
   border-radius: 12px;

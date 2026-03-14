@@ -348,8 +348,104 @@ Wave A progress:
 - Match arms in `count_for()` gated with `#[cfg(feature)]` — clean compilation in both modes, no dead-code warnings.
 - Test suite: 142 tests, 0 failures (+6 Gpt4o tests, +4 exact GPT-4 tests).
 
+### V9.10 — Metrics Reset & E2E Integration Tests
+
+**Status:** Delivered (2026-03-14).
+
+- `DELETE /v1/metrics/reset` endpoint — resets all counters without restarting the server. Returns `204 No Content`.
+- `MetricsCollector::reset()` zeroes the full `MetricsSnapshot` and `hour_buckets`; caches preserved.
+- Dashboard "Reset metrics" button in `OverviewView.vue` header (fires DELETE, disables in-flight, styled with red accent).
+- `theme.css` `.view-header` upgraded to flex layout so the button aligns to the right on all views.
+- `scripts/test-e2e.ps1` — 32-assertion E2E suite covering 6 groups: health, intent routing (8 intents), token pipeline, metrics increment, metrics reset (204 + all zeroed), and post-reset re-increment.
+
+### V9.10.1 — BPE-Aware Token Optimizer
+
+**Status:** Delivered (2026-03-14).
+
+- **`compiler/src/optimizer.rs`** (new) — 6 lossless BPE-friendly passes applied before semantic compilation:
+  1. Whitespace normalization (tabs, multi-space, trailing, blank runs)
+  2. Numeric separator removal (`1,000,000` → `1000000`)
+  3. Verbose-phrase substitution (21 patterns: `in order to` → `to`, `utilize` → `use`, `please note that` → `note:`, …)
+  4. Consecutive duplicate-line collapse (≥3 identical lines → `[×N]`)
+  5. Standalone comment stripping (codegen/general; skipped for review/debug)
+  6. JSON compaction (valid JSON input → compact re-serialisation, −30–50 % tokens)
+- `CompileResult.optimizer_savings` — new field: tokens saved by the optimizer alone.
+- `POST /v1/compile` response: `"optimizer_savings"` field exposed.
+- 16 new unit tests · 181 total · 0 failures.
+- Typical additional gain: **+10–30 %** on top of the existing semantic compiler.
+
+### V9.11 — Provider Budget & Alerting
+
+**Status:** Delivered (2026-03-14).
+
+- Per-provider daily request budget (`max_requests_per_day`) configurable in `providers.yaml`.
+- Automatic fallback to the next available provider when budget is exhausted.
+- Budget warning at ≥80%, exhausted at ≥100%; SSE `alerts` array emitted in metrics stream.
+- Dashboard alert banner displayed above metrics grid (orange warning / red exhausted).
+
+### V9.12 — Distillation Ratios + BM25 Salience Scoring
+
+**Status:** Delivered (2026-03-14).
+
+- Per-intent distillation ratios: ocr/translate 100%, debug/review 50%, codegen 33%, general 25%, summarize 20%.
+- BM25-inspired `salience_score()` line scorer replacing head/tail truncation for `general` and `summarize`.
+- `reduce_by_salience()` selects top-2/3 lines by signal density, preserves original order.
+
+### V9.13 — Memory Stability Decay + Intent-Scoped Injection
+
+**Status:** Delivered (2026-03-14).
+
+- `ContextBlock` gains `intent` field for scoped injection.
+- `register()` decays all other blocks ×0.92 per call; evicts blocks below stability 0.10.
+- `compute_reuse()` intent-scope guard: returns zero reuse when block intent ≠ request intent.
+- 5 new unit tests covering decay, eviction, and intent mismatch.
+
+### V9.14 — Compiler-driven Chat History Compression
+
+**Status:** Delivered (2026-03-14).
+
+- `compress_conversation_history()` now runs each older turn through `compiler::compile_context()`.
+- Intent marker prefix stripped before embedding in summary block.
+- Fallback to word-truncation when compiled output is empty.
+
+### V9.15 — Quality-Tier Routing + Conciseness Injection
+
+**Status:** Delivered (2026-03-14 — VERSION 9.15.0).
+
+- `quality_tier: low|standard|high` added to all active providers in `providers.yaml`.
+- Per-provider `fallback_chain` in `ProviderConfig` overrides global fallback sequence when non-empty.
+- `concise_mode: true` in `routing.yaml` — DISTIRA injects a conciseness directive into every forwarded LLM request, reducing output token usage across all providers.
+- `inject_conciseness_directive()` helper in `core/main.rs` — prepends brevity system message; merges with existing system message if present.
+- Dashboard: quality tier badge (`high`/`standard`/`low`) column in Live AI Efficiency table.
+
+### V9.15.1 — Response Conciseness — rationale
+
+Requesting the LLM to be concise in plain language (no emojis, no markdown decorations, short direct answers) reduces output token count, lowers latency, and makes responses more accessible to non-technical users. Enabled by default via `concise_mode: true` in `routing.yaml` — fully reversible by setting to `false`.
+
+### V9.16 — Latency-Aware Routing
+
+**Status:** Delivered (2026-03-14 — VERSION 9.16.0).
+
+- Rolling average response latency tracked per provider in `MetricsCollector` (`provider_latency: HashMap<String, (f64, u64)>` — sum_ms + count).
+- `choose_provider_latency_aware()` on `RouterConfig`: collects all within-budget candidates, picks minimum by avg latency; unmeasured providers get `f64::MAX` placeholder; when all are unmeasured falls back to priority order; sensitive override bypasses latency entirely.
+- `avg_latency_by_provider()` accessor on `MetricsCollector` — computes live average on request.
+- `core/chat_completions` — `std::time::Instant` timing around both streaming (`forward_stream`) and non-streaming (`forward`) adapter calls; latency stored in `RecordEntry.latency_ms`.
+- `ModelStats` struct extended with `avg_latency_ms`, `latency_sum_ms`, `latency_samples`; emitted in SSE metrics stream.
+- `/v1/providers` enriched with per-provider `avg_latency_ms`.
+- Dashboard: Latency column in Live AI Efficiency table with `.latency-badge` pill.
+- 3 new router unit tests. Router suite: 8 → 11.
+
 ### V10 — Adaptive AI Optimization Network
 
-- Learning routing loop (feedback from response quality)
-- Provider capability graph
-- Automated optimization recommendations
+**Status:** Delivered (2026-03-14 — VERSION 10.0.0).
+
+- **`choose_provider_adaptive()`** — composite score = `latency × (1.0 + error_rate × 5.0)` per provider; replaces latency-only routing with a learning loop that penalises unreliable providers proportionally.
+- **`MetricsCollector.provider_errors` / `provider_total`** — session-level per-provider error tracking; `record_error()` called in both streaming and non-streaming `Err` branches of `chat_completions`.
+- **`error_rate_by_provider()`** — computes live error rate map from session totals; fed into `choose_provider_adaptive()` on every request.
+- **`GET /v1/suggestions`** — adaptive optimization suggestions endpoint: flags providers with ≥5% error rate (warning) or ≥3 000 ms latency (info/warning); returns structured JSON `{ severity, code, provider, metric, value, message }`.
+- **`GET /v1/providers`** — enriched with `error_rate` per provider alongside `avg_latency_ms`.
+- **Dashboard** — Optimization Suggestions panel in OverviewView: fetches `/v1/suggestions` on mount and on manual Refresh; color-coded warning/info cards with provider · metric metadata.
+- **Clippy `manual_split_once`** — fixed in `compress_conversation_history()`.
+- Router suite: 11 → 14 tests (3 new adaptive tests). All 202+ workspace tests pass.
+
+*Multi-tenant isolation, native VS Code extension dedicated build, and cluster mode are scoped for V11+.*

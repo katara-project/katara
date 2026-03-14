@@ -199,15 +199,20 @@ Ready-to-use commented entries for every provider above are in [`configs/provide
 
 ## Quick start
 
-### Windows
+### Windows — usage quotidien
 
 ```powershell
-# 1. First-time setup (installs Rust, Node.js, builds crates, installs npm deps)
+# First-time only (installs Rust, Node.js, builds crates, npm deps)
 .\scripts\bootstrap-win.ps1
 
-# 2. Start all services (Ollama + backend + dashboard)
+# Every day — starts Ollama + backend (release binary) + Vue dashboard
 .\scripts\start-win.ps1
 ```
+
+> **MCP** — lancé automatiquement par VS Code dès l'ouverture du dossier (`mcp.json`). Rien à faire manuellement.
+
+`bootstrap-win.ps1` n'est nécessaire qu'une seule fois (ou après `git clone` / mise à jour des dépendances).  
+`start-win.ps1` détecte si les sources ont changé et recompile uniquement si nécessaire — le démarrage habituel prend quelques secondes.
 
 ### Linux / macOS
 
@@ -215,21 +220,22 @@ Ready-to-use commented entries for every provider above are in [`configs/provide
 # First-time setup
 ./scripts/bootstrap.sh
 
-# Start backend manually
-cargo run -p core
+# Daily start
+cargo build --release -p core && ./target/release/core &
+cd dashboard/ui-vue && npm run dev
 ```
 
 ### Manual
 
 ```bash
-# Rust backend
+# Rust backend (debug)
 cargo run -p core
 
 # Vue dashboard (separate terminal)
-cd dashboard/ui-vue && npm install && npm run dev
+cd dashboard/ui-vue && npm run dev
 
-# MCP server (managed automatically by VS Code via mcp.json)
-# If testing manually: cd mcp && node distira-server.mjs
+# MCP server (VS Code manages it automatically via .vscode/mcp.json)
+# Manual test only: cd mcp && node distira-server.mjs
 ```
 
 ### Secrets management
@@ -369,7 +375,7 @@ See [INSTALL.md](INSTALL.md#vs-code-agent-mcp) for setup instructions and [TESTI
 
 ## Version
 
-Current runtime version: **8.0.0** — served from [VERSION](VERSION) and exposed live via `GET /version`.
+Current runtime version: **9.10.1** — served from [VERSION](VERSION) and exposed live via `GET /version`.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for planned iterations.
 

@@ -24,3 +24,9 @@ routing:
     general: openrouter-step-3.5-flash-cloud
     # ── OCR → cloud Mistral OCR (best accuracy) ─────────
     ocr: mistral-ocr-2512-cloud
+
+  # ── Response optimisation ────────────────────────────────────────────────────
+  # When true, DISTIRA injects a conciseness directive into every forwarded
+  # LLM request so responses are shorter, plain-language, and emoji-free.
+  # This reduces output token consumption for all providers.
+  concise_mode: true

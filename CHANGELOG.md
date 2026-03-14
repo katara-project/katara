@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -6,6 +6,128 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Fixed — Context Memory live metrics (2026-03-14)
+
+- **`MetricsSnapshot`** — added `stable_blocks: usize` and `context_reuse_ratio_pct: f32` fields (serde default = 0); updated in `record()` from `context_store.len()` and `memory_reused_tokens / raw_tokens`.
+- **`metrics_stream`** — SSE stream now injects `context_blocks_summary` array per event: `[{ id, stability, token_count, intent }]` — no raw content exposed.
+- **`store/metrics.ts`** — `stableBlocks`, `contextRatioPct`, `contextBlocksSummary` refs added; `applySnapshot` binds them from the SSE payload.
+- **`MemoryView.vue`** — Reuse Ratio and Stable Blocks cards now bound to live store values (were hardcoded `48.6%` / `14`); Context Block Status grid now renders real fingerprinted blocks from the SSE stream with per-block stability classification (`stable` ≥ 70% / `delta` ≥ 30% / `evicted` < 30%).
+
+### Added — V10.0 Adaptive AI Optimization Network (2026-03-14)
+
+- **`router/choose_provider_adaptive()`** — composite score routing: `latency × (1.0 + error_rate × 5.0)` per provider; unmeasured providers get `f64::MAX` and fall back to priority order; sensitive override bypasses scores entirely. Replaces `choose_provider_latency_aware()` as the default routing function in all chat and compile paths.
+- **`core/MetricsCollector`** — `provider_errors: HashMap<String, u64>` + `provider_total: HashMap<String, u64>` (session-level, never reset); `record_error(provider)` method increments both on forward failure; `error_rate_by_provider() -> HashMap<String, f64>` accessor.
+- **`core/chat_completions`** — both streaming `Err` branch and non-streaming `Err` branch now call `record_error()` so provider reliability is tracked.
+- **`core/list_providers`** — `/v1/providers` response enriched with `error_rate` per provider.
+- **`core/get_suggestions`** — new `GET /v1/suggestions` endpoint: computes actionable optimization suggestions from live error rates (≥5%) and latency (≥3000ms); returns `{ generated_at, count, suggestions: [{severity, code, provider, metric, value, message}] }`.
+- **`dashboard/OverviewView.vue`** — Optimization Suggestions panel: fetches `/v1/suggestions` on mount + manual Refresh button; color-coded warning/info cards; provider · metric · value meta line.
+- **`router` tests** — 3 new: `adaptive_returns_valid_decision`, `adaptive_penalizes_high_error_rate`, `adaptive_sensitive_ignores_scores`. Router suite: 11 → 14 tests.
+- **Clippy** — fixed `manual_split_once` lint in `core/compress_conversation_history()` (`.splitn(2,’|’).nth(1)` → `.split_once(’|’).map(|x| x.1)`).
+
+### Added — V9.16 Latency-Aware Routing (2026-03-14)
+
+- **`router/choose_provider_latency_aware()`** — collects all within-budget candidates for an intent, ranks by rolling average latency, picks the fastest; providers with no measurement get `f64::MAX` and fall back to priority order; sensitive override bypasses latency logic entirely.
+- **`core/RecordEntry`** — `latency_ms: u64` field; 0 for cache hits and compile-only requests.
+- **`core/MetricsCollector`** — `provider_latency: HashMap<String, (f64, u64)>` rolling sum+count per provider key; `avg_latency_by_provider()` accessor returns `HashMap<String, f64>`.
+- **`core/ModelStats`** — `avg_latency_ms`, `latency_sum_ms`, `latency_samples` fields; serialized in SSE metrics stream.
+- **`core/chat_completions`** — `std::time::Instant` timing around both `forward_stream` and `forward` adapter calls; measured latency recorded per request.
+- **`core/list_providers`** — `/v1/providers` response enriched with `avg_latency_ms` per provider.
+- **`dashboard/OverviewView.vue`** — Latency column in Live AI Efficiency table with `.latency-badge` pill (`N ms` / `—`).
+- **`router` tests** — 3 new: `latency_aware_returns_valid_decision`, `latency_aware_prefers_faster_provider`, `latency_aware_sensitive_ignores_latency`. Router suite: 8 → 11 tests.
+
+### Added — V9.15 Quality-Tier Routing + Conciseness Injection (2026-03-14)
+
+- **`router/ProviderConfig`** — `quality_tier: Option<String>` ("low" | "standard" | "high", serde default absent = "standard") and `fallback_chain: Vec<String>` (per-provider ordered fallback; empty = use global chain).
+- **`router/ProviderSummary`** — `quality_tier: String` exposed on every `/v1/providers` entry.
+- **`router/RouterConfig`** — `concise_mode: bool` field; `concise_mode()` accessor; loaded from `routing.yaml`.
+- **`router/choose_provider_with_budget()`** — per-provider `fallback_chain` used when non-empty; otherwise falls back to global `default → fallback` sequence.
+- **`configs/routing/routing.yaml`** — `concise_mode: true` enabled by default.
+- **`configs/providers/providers.yaml`** — `quality_tier` annotation on all eight active providers (low/standard/high).
+- **`core/inject_conciseness_directive()`** — inserts (or prepends to existing) system message: "Respond as concisely as possible. Use plain, simple language…" Reduces output token consumption across all providers.
+- **`core/chat_completions`** — applies `inject_conciseness_directive` when `router_config.concise_mode()` is true.
+- **`dashboard/utils/providers.ts`** — `qualityTier(key)` function + `PROVIDER_QUALITY` map.
+- **`dashboard/OverviewView.vue`** — Quality tier badge column in Live AI Efficiency table; `.quality-pill.high/.standard/.low` CSS.
+
+### Added — V9.14 Compiler-driven Chat History Compression (2026-03-14)
+
+- **`core/compress_conversation_history()`** (V9.14) — older conversation turns now pass through `compiler::compile_context()` for real semantic distillation instead of naive 20-word truncation. Intent marker prefix stripped before embedding in summary block. Fallback to word-truncation when compiled output is empty.
+
+### Added — V9.13 Memory Stability Decay + Intent-Scoped Injection (2026-03-14)
+
+- **`memory/ContextBlock`** — new `intent: String` field (serde default = `""`), persisted in `runtime-state.json`.
+- **`memory/ContextStore::register()`** — now takes `intent: &str`; decays all other blocks by `×0.92` per register call; evicts blocks below `stability < 0.10`.
+- **`memory/ContextStore::compute_reuse()`** — now takes `intent: &str`; returns zero reuse when block intent ≠ request intent (intent-scope guard).
+- **`memory/ContextStore::load_blocks()`** — skips blocks already below eviction threshold on restore.
+- **`core/compile_with_semantic_cache()`** — passes `result.intent` to `register()`.
+- **`core/compile` handler** — passes `result.intent` to `compute_reuse()`.
+- **`core/chat_completions` handler** — passes `result.intent` to `compute_reuse()`.
+- **5 new tests**: intent mismatch returns zero, stability decays on register, fully decayed blocks are evicted, plus updated existing tests for new signatures.
+
+### Added — V9.12 Distillation Ratios + BM25 Salience (2026-03-14)
+
+- **`compiler/distillation_divisor(intent)`** — per-intent ratios: ocr/translate keep 100%, debug/review keep 50%, codegen keeps 33%, general keeps 25%, summarize keeps 20%.
+- **`compiler/salience_score()`** — BM25-inspired line scorer: word density + keyword hits × 5 + structure bonus (`:`, `=`, `->`, bullet).
+- **`compiler/reduce_by_salience()`** — selects top-2/3 lines by salience preserving original order; replaces head/tail truncation for `general` and `summarize` intents.
+
+### Added — V9.11 Provider Budget & Alerting (2026-03-14)
+
+- **`router/ProviderConfig`** — `max_requests_per_day: u64` field (serde default = 0 = unlimited); `defaults()` initializers updated.
+- **`router/choose_provider_with_budget()`** — budget-aware routing with candidate fallback chain; `choose_provider()` delegates to it with empty counts.
+- **`router/list_provider_summaries()`** — maps `max_requests_per_day` to `ProviderSummary`.
+- **`core/MetricsCollector`** — `daily_provider_counts: HashMap<String, u64>` + `daily_reset_epoch: u64`; auto-resets at UTC midnight in `record()`.
+- **`core/budget_alerts()`** — emits `budget_warning` (≥80%) and `budget_exhausted` (≥100%) JSON objects.
+- **`core/metrics_stream`** SSE payload includes `"alerts": [...]` when any provider is near/over budget.
+- **Dashboard `store/metrics.ts`** — `alerts` reactive ref, `applySnapshot` maps `s.alerts`, exported.
+- **Dashboard `OverviewView.vue`** — alert banner shown above metrics grid (orange warning / red exhausted).
+
+### Added — V9.10.1 BPE-Aware Token Optimizer (2026-03-14)
+
+- **`compiler/src/optimizer.rs`** (new file, 421 lines) — `TokenOptimizer` with 6 lossless passes:
+  1. **Whitespace normalization**: tabs → space, multi-space collapse, trailing spaces, consecutive blank line limit.
+  2. **Numeric separator removal**: `1,000,000` → `1000000` — commas between digits are extra tokens in BPE; removed safely.
+  3. **Verbose-phrase substitution** (21 patterns): `in order to` → `to`, `utilize` → `use`, `please note that` → `note:`, `due to the fact that` → `because`, etc. Case-insensitive with capitalisation preservation.
+  4. **Consecutive duplicate-line collapse**: runs of ≥3 identical lines → one line `[×N]`. Useful for log/trace dumps.
+  5. **Standalone comment stripping** (codegen/general intents only): removes `//`, `#`, `/* */`, `*` comment-only lines. Skips for `review` and `debug` intents.
+  6. **JSON compaction**: if the entire input is valid JSON, re-serialises it compact (no indentation). Saves 30–50 % on JSON payloads.
+- **`compiler/src/lib.rs`** — optimizer integrated into `compile_context()` pipeline: runs after `tokenizer::encode()`, before semantic reduction. `CompileResult` gains `optimizer_savings: usize` field.
+- **`core/src/main.rs`** — `POST /v1/compile` response now includes `"optimizer_savings"` field; `compile_result_from_cache` updated accordingly.
+- **16 new unit tests** in `optimizer::tests` covering each pass independently and the combined pipeline.
+- Build: `cargo check` clean · 181 tests, 0 failures.
+- Typical additional savings: **+10–30 %** on top of the existing semantic compiler.
+
+### Added — V9.10 Metrics Reset & E2E Integration Tests (2026-03-14)
+
+- **`DELETE /v1/metrics/reset`** endpoint: resets all counters (requests, tokens, costs, intent stats, model stats, history buckets) without restarting the server. Returns `204 No Content`.
+- **`MetricsCollector::reset()`** method in `core/src/main.rs`: zeroes the full `MetricsSnapshot` and clears `hour_buckets`; caches and context store are preserved.
+- **Dashboard "Reset metrics" button** in `OverviewView.vue` header: fires `DELETE /v1/metrics/reset` and disables while in-flight. Styled with a subtle red accent.
+- **`scripts/test-e2e.ps1`** — end-to-end integration test suite (32 assertions across 6 groups):
+  - Group 1: health, version, providers
+  - Group 2: intent routing for debug / codegen / review / summarize / translate / ocr / general / sensitive
+  - Group 3: token pipeline (raw > 0, compiled > 0, fingerprint present)
+  - Group 4: metrics increment after compile requests
+  - Group 5: `DELETE /v1/metrics/reset` → 204 + all counters zeroed
+  - Group 6: post-reset pipeline re-increments from zero
+- **`theme.css` `.view-header`**: added `display: flex; align-items: flex-start; justify-content: space-between` so the Reset button aligns to the right of every view header.
+- Build: clean `cargo build` · 0 errors, 0 warnings.
+
+### Added — Efficiency Score sovereign bonus + agent config (2026-03-14)
+
+- **Sovereign routing bonus**: `metrics::compute()` now adds `+30%` on top of raw token avoidance ratio (capped at 100%). Reflects the intrinsic value of routing through DISTIRA regardless of compression level. Example: 24% token reduction → 54% efficiency score.
+- **`SOVEREIGN_BONUS` constant** (`metrics/src/lib.rs`): `pub const SOVEREIGN_BONUS: f32 = 0.30` — documented, testable, easy to tune.
+- **5 metrics tests**: `compute_avoidance_ratio`, `compute_zero_raw`, `compute_no_reduction`, `compute_partial_reduction`, `compute_bonus_capped_at_100`.  All passing.
+- **Dashboard gauge** (`EfficiencyGauge.vue`): band labels updated to Efficient / High / Excellent; help text no longer exposes internal bonus detail.
+- **Insights threshold** (`InsightsView.vue`): efficiency alert raised from `< 30%` to `< 50%` (floor can no longer be hit).
+- **`.github/agents/distira.agent.md`**: `name: distira` field added to frontmatter for reliable VS Code agent selector resolution.
+- **`.vscode/settings.json`**: `"chat.agent.enabled": true` added to activate custom agent support.
+- **ROADMAP.md**: V9.10, V9.11, V9.12, and V10 detailed iteration scopes added.
+
+### Planned — V9.10 → V10 iteration roadmap (2026-03-13)
+
+- **V9.10**: `DELETE /v1/metrics/reset` endpoint + dashboard reset button + E2E integration test suite (`scripts/test-e2e.ps1`).
+- **V9.11**: Per-provider daily budget (`max_requests_per_day` in `providers.yaml`), automatic fallback on budget exhaustion, efficiency threshold alerts (SSE `alert` event + dashboard banner).
+- **V9.12**: Dashboard sparkline (rolling token reduction %), per-provider breakdown panel, CSV/JSON metrics export (`GET /v1/metrics/export`), full dark mode.
+- **V10**: Adaptive routing loop (quality signals → provider weights), provider capability graph, multi-tenant `project_id` isolation, native VS Code extension, cluster mode.
 
 ### Added — V9.9 LM Studio / OpenWebUI compatibility + GLM / Gemini 2.5 / Claude 4.x (2026-03-13)
 
@@ -63,20 +185,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed — V9.5.1 Dashboard SSE Real-time & Tokenizer Idempotency (2026-03-13)
 
 - **`dashboard/ui-vue/src/store/metrics.ts`** — Fixed SSE reconnect logic. Previous `connect()` guard (`if (es) return`) permanently blocked reconnection when the EventSource entered `CLOSED` state (e.g., after a server restart). Fix: check `es.readyState !== EventSource.CLOSED` before short-circuiting; close and null the stale instance; schedule a 3-second auto-retry when `onerror` fires in CLOSED state. Added `es.onopen` handler so `connected` is set immediately on connection establishment rather than waiting up to 2 seconds for the first `metrics` event.
-- **`tokenizer/src/lib.rs` (`collapse_inline_ws`)** — Fixed trailing-newline idempotency bug. The previous implementation pushed `\n` after every split segment produced by `split('\n')`, then tried to remove it only when the input didn't end with `\n`. Inputs ending with `\n` produced an extra `\n` (e.g., `"foo\n"` → `"foo\n\n"`), breaking `encode(encode(x)) == encode(x)` for any message ending with a newline (ubiquitous in LLM chat messages). Fix: push `\n` *between* segments only (`idx < last_idx`); the trailing-empty segment from `split('\n')` naturally accounts for the final newline.
+- **`tokenizer/src/lib.rs` (`collapse_inline_ws`)** — Fixed trailing-newline idempotency bug. The previous implementation pushed `
+` after every split segment produced by `split('
+')`, then tried to remove it only when the input didn't end with `
+`. Inputs ending with `
+` produced an extra `
+` (e.g., `"foo
+"` → `"foo
+
+"`), breaking `encode(encode(x)) == encode(x)` for any message ending with a newline (ubiquitous in LLM chat messages). Fix: push `
+` *between* segments only (`idx < last_idx`); the trailing-empty segment from `split('
+')` naturally accounts for the final newline.
 - **`core/src/main.rs` (`metrics_stream`)** — Replaced `lock().unwrap()` with `lock().unwrap_or_else(|e| e.into_inner())` so a poisoned mutex (caused by a panic under lock elsewhere) does not permanently kill the SSE stream.
-- **Test suite: 133 tests, 0 failures** (+2 tests: `encode_is_idempotent_with_trailing_newline` for single-line and multi-line inputs with trailing `\n`).
+- **Test suite: 133 tests, 0 failures** (+2 tests: `encode_is_idempotent_with_trailing_newline` for single-line and multi-line inputs with trailing `
+`).
 
 ### Added — V9.5 Encoding & Decoding Optimization (2026-03-16)
 
 - **`tokenizer::encode(text)`** — New public function that normalizes LLM input for optimal BPE tokenization without any semantic loss. Applied automatically in `compiler::compile_context()` before measuring token count. Transformations (in order):
-  1. **Invisible Unicode removal** — strips BOM (`U+FEFF`), ZWSP (`U+200B`), soft-hyphen (`U+00AD`), ZWJ/ZWNJ, LTR/RTL marks; converts line/paragraph separators (`U+2028`/`U+2029`) to `\n` to preserve structure.
+  1. **Invisible Unicode removal** — strips BOM (`U+FEFF`), ZWSP (`U+200B`), soft-hyphen (`U+00AD`), ZWJ/ZWNJ, LTR/RTL marks; converts line/paragraph separators (`U+2028`/`U+2029`) to `
+` to preserve structure.
   2. **Typographic punctuation normalization** — curly quotes (`"` `"` `„` `«` `»`) → `"`; typographic single-quotes (`'` `'` `‚`) → `'`; em/en-dash (`–` `—` `―`) → `-`; ellipsis (`…`) → `...` (3 ASCII dots parse safer downstream).
-  3. **Excess blank-line collapsing** — 3+ consecutive newlines → 2 (`\n\n`); LLMs treat a blank line as a paragraph break, additional blank lines add tokens with no semantic gain.
+  3. **Excess blank-line collapsing** — 3+ consecutive newlines → 2 (`
+
+`); LLMs treat a blank line as a paragraph break, additional blank lines add tokens with no semantic gain.
   4. **Inline whitespace normalization** — preserves leading indentation (code blocks, YAML, TOML); collapses internal whitespace runs to a single space; strips trailing whitespace per line. Idempotent: `encode(encode(x)) == encode(x)`.
 - **`tokenizer::encode_for(text, family)`** — Family-aware variant kept for future calibration per tokenizer vocabulary.
 - **`tokenizer::decode(text)`** — New public function that post-processes raw LLM output to fix BPE reconstruction artifacts before serving and caching. Applied in `core::chat_completions` on all provider responses (both streaming and non-streaming). Fixes:
-  1. **CRLF normalization** — `\r\n` and lone `\r` → `\n` (Windows line endings from some HTTP clients).
+  1. **CRLF normalization** — `\r
+` and lone `\r` → `
+` (Windows line endings from some HTTP clients).
   2. **Stray space before punctuation** — `,` `.` `!` `?` `:` `;` → compact form (SentencePiece leading-`▁` convention artefact common in Llama-3/Mistral output).
   3. **Double-space collapsing** — consecutive spaces within a line → single space.
   4. **CJK inter-character space removal** — `你 好` → `你好`; BPE decoding inserts a space between every pair of tokens, which is wrong for CJK where words are not space-separated.
