@@ -114,11 +114,44 @@ Start-Sleep -Seconds 1
 
 Write-Host '==> Starting DISTIRA backend...' -ForegroundColor Cyan
 $cargoPath = "$env:USERPROFILE\.cargo\bin"
+
+# Use pre-built release binary when available to skip recompilation on daily
+# start. Rebuilds only when sources are newer than the binary.
+$releaseBin = Join-Path $rootDir 'target\release\core.exe'
+$srcDir      = Join-Path $rootDir 'core\src'
+$needsBuild  = $true
+if (Test-Path $releaseBin) {
+    $binAge = (Get-Item $releaseBin).LastWriteTime
+    $newest = (Get-ChildItem $srcDir -Recurse -Filter '*.rs' |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1).LastWriteTime
+    if ($null -ne $newest -and $newest -le $binAge) {
+        $needsBuild = $false
+        Write-Host '[ok] Release binary is up-to-date — skipping compilation.' -ForegroundColor Green
+    } else {
+        Write-Host '[..] Sources changed — rebuilding...' -ForegroundColor Yellow
+    }
+}
+
+if ($needsBuild) {
+    Write-Host '[..] Building release binary (first run or sources changed)...' -ForegroundColor Cyan
+    $env:PATH = "$cargoPath;$env:PATH"
+    if (Test-Path '.env') {
+        Get-Content '.env' | ForEach-Object {
+            if ($_ -match '^([^#=]+)=(.*)$') {
+                [Environment]::SetEnvironmentVariable($Matches[1].Trim(), $Matches[2].Trim(), 'Process')
+            }
+        }
+    }
+    & "$cargoPath\cargo.exe" build --release -p core 2>&1 | ForEach-Object { Write-Host "  $_" }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host '[!!] Release build failed.' -ForegroundColor Red; exit 1
+    }
+}
+
 $backendJob = Start-Job -ScriptBlock {
-    param($dir, $cargo)
+    param($dir, $bin)
     Set-Location $dir
-    # Ensure cargo is in PATH inside the job
-    $env:PATH = "$cargo;$env:PATH"
     # Forward .env into job
     if (Test-Path '.env') {
         Get-Content '.env' | ForEach-Object {
@@ -127,8 +160,8 @@ $backendJob = Start-Job -ScriptBlock {
             }
         }
     }
-    & "$cargo\cargo.exe" run -p core 2>&1
-} -ArgumentList $rootDir, $cargoPath
+    & $bin 2>&1
+} -ArgumentList $rootDir, $releaseBin
 $jobs += $backendJob
 
 # Wait for backend to be ready (max 60s)
