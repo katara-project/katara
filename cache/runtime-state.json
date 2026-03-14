@@ -1,14 +1,14 @@
 {
   "snapshot": {
-    "ts": 1773458158,
-    "total_requests": 10,
-    "raw_tokens": 299,
-    "compiled_tokens": 192,
+    "ts": 1773459415,
+    "total_requests": 16,
+    "raw_tokens": 406,
+    "compiled_tokens": 309,
     "memory_reused_tokens": 17,
-    "efficiency_score": 35.785954,
-    "local_ratio": 40.0,
+    "efficiency_score": 23.891626,
+    "local_ratio": 37.5,
     "cache_hits": 3,
-    "cache_misses": 7,
+    "cache_misses": 13,
     "cache_saved_tokens": 0,
     "history_raw": [
       67,
@@ -20,7 +20,13 @@
       241,
       297,
       298,
-      299
+      299,
+      310,
+      324,
+      338,
+      372,
+      390,
+      406
     ],
     "history_compiled": [
       42,
@@ -32,13 +38,25 @@
       161,
       190,
       191,
-      192
+      192,
+      207,
+      225,
+      243,
+      267,
+      289,
+      309
     ],
     "history_reused": [
       0,
       0,
       0,
       0,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
       17,
       17,
       17,
@@ -96,7 +114,7 @@
       162,
       68,
       0,
-      2
+      109
     ],
     "history_hour_compiled": [
       0,
@@ -122,7 +140,7 @@
       105,
       43,
       0,
-      2
+      119
     ],
     "history_hour_reused": [
       0,
@@ -150,43 +168,77 @@
       0,
       0
     ],
-    "routes_local": 4,
-    "routes_cloud": 6,
-    "routes_midtier": 0,
+    "routes_local": 6,
+    "routes_cloud": 9,
+    "routes_midtier": 1,
     "intent_stats": {
+      "codegen": {
+        "requests": 1,
+        "raw_tokens": 16,
+        "compiled_tokens": 20
+      },
+      "summarize": {
+        "requests": 1,
+        "raw_tokens": 18,
+        "compiled_tokens": 22
+      },
       "general": {
-        "requests": 6,
-        "raw_tokens": 117,
-        "compiled_tokens": 72
+        "requests": 9,
+        "raw_tokens": 156,
+        "compiled_tokens": 123
       },
       "debug": {
-        "requests": 4,
-        "raw_tokens": 182,
-        "compiled_tokens": 120
+        "requests": 5,
+        "raw_tokens": 216,
+        "compiled_tokens": 144
       }
     },
     "model_stats": {
-      "stepfun/step-3.5-flash:free@openrouter-step-3.5-flash-cloud": {
-        "model": "stepfun/step-3.5-flash:free",
-        "provider": "openrouter-step-3.5-flash-cloud",
-        "requests": 6,
-        "raw_tokens": 117,
-        "compiled_tokens": 72,
+      "mistralai/mistral-small-3.1-24b-instruct:free@openrouter-mistral-small-3.1-24b-instruct-cloud": {
+        "model": "mistralai/mistral-small-3.1-24b-instruct:free",
+        "provider": "openrouter-mistral-small-3.1-24b-instruct-cloud",
+        "requests": 1,
+        "raw_tokens": 18,
+        "compiled_tokens": 22,
         "memory_reused_tokens": 0,
-        "efficiency_score": 38.46154,
+        "efficiency_score": 0.0,
         "sovereign_requests": 0,
-        "non_sovereign_requests": 6,
+        "non_sovereign_requests": 1,
         "sovereign_ratio": 0.0
       },
       "mistral:7b-instruct@ollama-mistral-7b-instruct": {
         "model": "mistral:7b-instruct",
         "provider": "ollama-mistral-7b-instruct",
-        "requests": 4,
-        "raw_tokens": 182,
-        "compiled_tokens": 120,
+        "requests": 5,
+        "raw_tokens": 216,
+        "compiled_tokens": 144,
         "memory_reused_tokens": 17,
-        "efficiency_score": 34.065933,
-        "sovereign_requests": 4,
+        "efficiency_score": 33.333336,
+        "sovereign_requests": 5,
+        "non_sovereign_requests": 0,
+        "sovereign_ratio": 100.0
+      },
+      "stepfun/step-3.5-flash:free@openrouter-step-3.5-flash-cloud": {
+        "model": "stepfun/step-3.5-flash:free",
+        "provider": "openrouter-step-3.5-flash-cloud",
+        "requests": 9,
+        "raw_tokens": 156,
+        "compiled_tokens": 123,
+        "memory_reused_tokens": 0,
+        "efficiency_score": 21.153847,
+        "sovereign_requests": 0,
+        "non_sovereign_requests": 9,
+        "sovereign_ratio": 0.0
+      },
+      "qwen2.5-coder:7b@ollama-qwen2.5-coder": {
+        "model": "qwen2.5-coder:7b",
+        "provider": "ollama-qwen2.5-coder",
+        "requests": 1,
+        "raw_tokens": 16,
+        "compiled_tokens": 20,
+        "memory_reused_tokens": 0,
+        "efficiency_score": 0.0,
+        "sovereign_requests": 1,
         "non_sovereign_requests": 0,
         "sovereign_ratio": 100.0
       }
@@ -196,25 +248,25 @@
         "client_app": "VS Code Copilot Chat",
         "upstream_provider": "unknown-provider",
         "upstream_model": "unknown-model",
-        "requests": 3,
-        "last_seen_ts": 1773453152
+        "requests": 9,
+        "last_seen_ts": 1773459415
       }
     },
     "last_request": {
-      "client_app": null,
+      "client_app": "VS Code Copilot Chat",
       "upstream_provider": null,
       "upstream_model": null,
       "tenant_id": null,
       "project_id": null,
       "policy_pack": null,
-      "routed_provider": "openrouter-step-3.5-flash-cloud",
-      "routed_model": "stepfun/step-3.5-flash:free",
-      "intent": "general",
-      "semantic_cache_hit": true,
-      "semantic_fingerprint": "12638352127299873646",
-      "cache_hit": true,
+      "routed_provider": "ollama-qwen2.5-coder",
+      "routed_model": "qwen2.5-coder:7b",
+      "intent": "codegen",
+      "semantic_cache_hit": false,
+      "semantic_fingerprint": "3190483154157174394",
+      "cache_hit": false,
       "sensitive": false,
-      "ts": 1773458158,
+      "ts": 1773459415,
       "cost_usd": 0.0
     },
     "request_history": [
@@ -387,30 +439,114 @@
         "sensitive": false,
         "ts": 1773458158,
         "cost_usd": 0.0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "571823978330740633",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773459264,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "13630229181434885465",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773459340,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "general",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "13633043931202537950",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773459343,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "ollama-mistral-7b-instruct",
+        "routed_model": "mistral:7b-instruct",
+        "intent": "debug",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "16320271377359283698",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773459408,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "openrouter-mistral-small-3.1-24b-instruct-cloud",
+        "routed_model": "mistralai/mistral-small-3.1-24b-instruct:free",
+        "intent": "summarize",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "10490942574422338149",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773459412,
+        "cost_usd": 0.0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": null,
+        "upstream_model": null,
+        "tenant_id": null,
+        "project_id": null,
+        "policy_pack": null,
+        "routed_provider": "ollama-qwen2.5-coder",
+        "routed_model": "qwen2.5-coder:7b",
+        "intent": "codegen",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "3190483154157174394",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773459415,
+        "cost_usd": 0.0
       }
     ],
     "session_cost_usd": 0.0,
     "last_request_cost_usd": 0.0
   },
   "sem_cache_entries": [
-    {
-      "fingerprint": 14551990969649365271,
-      "intent": "general",
-      "raw_tokens_estimate": 46,
-      "compiled_tokens_estimate": 26,
-      "summary": "Intent: general. Reduced estimated context from 46 to 26 tokens and trimmed low-signal context while preserving the main request.",
-      "compiled_context": "[k:general]|MCP status check: Is the Distira MCP server correctly connected to VS Code Copilot Chat? ...",
-      "created_at": 1773446944
-    },
-    {
-      "fingerprint": 5857413712018688965,
-      "intent": "debug",
-      "raw_tokens_estimate": 130,
-      "compiled_tokens_estimate": 80,
-      "summary": "Intent: debug. Reduced estimated context from 130 to 80 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
-      "compiled_context": "[k:debug]|You are a senior Rust engineer helping diagnose production crashes. Our service panics in production. Logs: ERROR db: connection failed dial tcp 10.0.0.5:5432 retrying 1/3 retrying 2/3 FATAL: all retries exhausted panic: nil pointer dereference goroutine 1 main.(*DBPool).Acquire pool.go:87 Root cause: nil ...",
-      "created_at": 1773446564
-    },
     {
       "fingerprint": 17185478699218872338,
       "intent": "general",
@@ -439,6 +575,69 @@
       "created_at": 1773446544
     },
     {
+      "fingerprint": 13630229181434885465,
+      "intent": "general",
+      "raw_tokens_estimate": 14,
+      "compiled_tokens_estimate": 18,
+      "summary": "Intent: general. Reduced estimated context from 14 to 18 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|test live dashboard update - requête ...",
+      "created_at": 1773459340
+    },
+    {
+      "fingerprint": 13204829732094483989,
+      "intent": "general",
+      "raw_tokens_estimate": 16,
+      "compiled_tokens_estimate": 18,
+      "summary": "Intent: general. Reduced estimated context from 16 to 18 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|Reply in one word only. Capital of France? Paris. Population?",
+      "created_at": 1773446655
+    },
+    {
+      "fingerprint": 14551990969649365271,
+      "intent": "general",
+      "raw_tokens_estimate": 46,
+      "compiled_tokens_estimate": 26,
+      "summary": "Intent: general. Reduced estimated context from 46 to 26 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|MCP status check: Is the Distira MCP server correctly connected to VS Code Copilot Chat? ...",
+      "created_at": 1773446944
+    },
+    {
+      "fingerprint": 5857413712018688965,
+      "intent": "debug",
+      "raw_tokens_estimate": 130,
+      "compiled_tokens_estimate": 80,
+      "summary": "Intent: debug. Reduced estimated context from 130 to 80 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
+      "compiled_context": "[k:debug]|You are a senior Rust engineer helping diagnose production crashes. Our service panics in production. Logs: ERROR db: connection failed dial tcp 10.0.0.5:5432 retrying 1/3 retrying 2/3 FATAL: all retries exhausted panic: nil pointer dereference goroutine 1 main.(*DBPool).Acquire pool.go:87 Root cause: nil ...",
+      "created_at": 1773446564
+    },
+    {
+      "fingerprint": 13633043931202537950,
+      "intent": "general",
+      "raw_tokens_estimate": 14,
+      "compiled_tokens_estimate": 18,
+      "summary": "Intent: general. Reduced estimated context from 14 to 18 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|test live dashboard update - requête ...",
+      "created_at": 1773459343
+    },
+    {
+      "fingerprint": 3190483154157174394,
+      "intent": "codegen",
+      "raw_tokens_estimate": 16,
+      "compiled_tokens_estimate": 20,
+      "summary": "Intent: codegen. Reduced estimated context from 16 to 20 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:codegen]|write a typescript function to parse a JWT ...",
+      "created_at": 1773459415
+    },
+    {
+      "fingerprint": 16320271377359283698,
+      "intent": "debug",
+      "raw_tokens_estimate": 34,
+      "compiled_tokens_estimate": 24,
+      "summary": "Intent: debug. Reduced estimated context from 34 to 24 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
+      "compiled_context": "[k:debug]|error: thread 'main' panicked at 'index out of bounds: ...",
+      "created_at": 1773459408
+    },
+    {
       "fingerprint": 7294020892820348209,
       "intent": "general",
       "raw_tokens_estimate": 14,
@@ -448,6 +647,15 @@
       "created_at": 1773446613
     },
     {
+      "fingerprint": 10490942574422338149,
+      "intent": "summarize",
+      "raw_tokens_estimate": 18,
+      "compiled_tokens_estimate": 22,
+      "summary": "Intent: summarize. Reduced estimated context from 18 to 22 tokens and compressed the transcript to the latest high-signal points.",
+      "compiled_context": "[k:summarize]|summarize the key architectural decisions made in this ...",
+      "created_at": 1773459412
+    },
+    {
       "fingerprint": 12638352127299873646,
       "intent": "general",
       "raw_tokens_estimate": 1,
@@ -455,6 +663,15 @@
       "summary": "Intent: general. Reduced estimated context from 1 to 1 tokens and trimmed low-signal context while preserving the main request.",
       "compiled_context": "",
       "created_at": 1773446535
+    },
+    {
+      "fingerprint": 571823978330740633,
+      "intent": "general",
+      "raw_tokens_estimate": 11,
+      "compiled_tokens_estimate": 15,
+      "summary": "Intent: general. Reduced estimated context from 11 to 15 tokens and trimmed low-signal context while preserving the main request.",
+      "compiled_context": "[k:general]|test distira dashboard ...",
+      "created_at": 1773459264
     },
     {
       "fingerprint": 1324878416449660251,
@@ -473,15 +690,6 @@
       "summary": "Intent: debug. Reduced estimated context from 67 to 42 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
       "compiled_context": "[k:debug]|2024-01-15 ERROR db: connection failed dial tcp 10.0.0.5:5432 connect: connection refused retrying 1/3 retrying 2/3 FATAL: all retries exhausted panic: nil ...",
       "created_at": 1773446128
-    },
-    {
-      "fingerprint": 13204829732094483989,
-      "intent": "general",
-      "raw_tokens_estimate": 16,
-      "compiled_tokens_estimate": 18,
-      "summary": "Intent: general. Reduced estimated context from 16 to 18 tokens and trimmed low-signal context while preserving the main request.",
-      "compiled_context": "[k:general]|Reply in one word only. Capital of France? Paris. Population?",
-      "created_at": 1773446655
     }
   ],
   "chat_cache": {},
@@ -512,6 +720,31 @@
       "content": "[k:debug]|Can you show me the exact code fix for pool.go line 87?"
     },
     {
+      "id": "13630229181434885465",
+      "stability": 1.0,
+      "content": "[k:general]|test live dashboard update - requête ..."
+    },
+    {
+      "id": "16320271377359283698",
+      "stability": 1.0,
+      "content": "[k:debug]|error: thread 'main' panicked at 'index out of bounds: ..."
+    },
+    {
+      "id": "17185478699218872338",
+      "stability": 1.0,
+      "content": "[k:general]|Are there existing production-grade tokenizer tools for Mistral, Llama, Qwen, ..."
+    },
+    {
+      "id": "10490942574422338149",
+      "stability": 1.0,
+      "content": "[k:summarize]|summarize the key architectural decisions made in this ..."
+    },
+    {
+      "id": "3190483154157174394",
+      "stability": 1.0,
+      "content": "[k:codegen]|write a typescript function to parse a JWT ..."
+    },
+    {
       "id": "12638352127299873646",
       "stability": 1.0,
       "content": ""
@@ -527,14 +760,19 @@
       "content": "[k:debug]|You are a senior Rust engineer helping diagnose production crashes. Our service panics in production. Logs: ERROR db: connection failed dial tcp 10.0.0.5:5432 retrying 1/3 retrying 2/3 FATAL: all retries exhausted panic: nil pointer dereference goroutine 1 main.(*DBPool).Acquire pool.go:87 Root cause: nil ..."
     },
     {
+      "id": "13633043931202537950",
+      "stability": 1.0,
+      "content": "[k:general]|test live dashboard update - requête ..."
+    },
+    {
       "id": "13204829732094483989",
       "stability": 1.0,
       "content": "[k:general]|Reply in one word only. Capital of France? Paris. Population?"
     },
     {
-      "id": "17185478699218872338",
+      "id": "571823978330740633",
       "stability": 1.0,
-      "content": "[k:general]|Are there existing production-grade tokenizer tools for Mistral, Llama, Qwen, ..."
+      "content": "[k:general]|test distira dashboard ..."
     }
   ],
   "hour_buckets": {
@@ -549,8 +787,8 @@
       17
     ],
     "1773457200": [
-      2,
-      2,
+      109,
+      119,
       0
     ],
     "1773450000": [

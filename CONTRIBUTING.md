@@ -7,10 +7,14 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 ## Getting started
 
 1. Fork the repository and clone it locally.
-2. Run the bootstrap script for your platform:
+2. **First-time only** — run the bootstrap script for your platform:
    - **Windows:** `.\scripts\bootstrap-win.ps1`
    - **Linux / macOS:** `./scripts/bootstrap.sh`
-3. Verify the build: `cargo build` and `cd dashboard/ui-vue && npm run build`.
+3. **Daily start** — one command starts everything (backend + dashboard):
+   - **Windows:** `.\scripts\start-win.ps1`
+   - **Linux / macOS:** `cargo build --release -p core && ./target/release/core &` + `cd dashboard/ui-vue && npm run dev`
+4. The **MCP server** starts automatically when you open the folder in VS Code (via `.vscode/mcp.json`). No manual step needed.
+5. Verify the build: `cargo test --workspace` and `cd dashboard/ui-vue && npm run build`.
 
 ## Development stack
 
