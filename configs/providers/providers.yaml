@@ -7,6 +7,11 @@
 #
 # Supported types: openai-compatible, mistral, google (future)
 # The base_url must point to the OpenAI-compatible root (ending in /v1).
+#
+# cost_per_1k_input_tokens / cost_per_1k_output_tokens  (USD)
+#   On-prem: effectively $0 (set to 0.0 — electricity cost only).
+#   Cloud:   use the provider's public pricing page.
+#   These are used by DISTIRA to compute cost savings per request.
 
 providers:
   # ── Local Ollama models ──────────────────────────────
@@ -16,6 +21,8 @@ providers:
     model: llama3:latest
     deployment: on-prem
     description: Llama 3 — general tasks, summarization
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
   ollama-qwen2.5-coder:
     type: openai-compatible
@@ -23,6 +30,8 @@ providers:
     model: qwen2.5-coder:7b
     deployment: on-prem
     description: Qwen 2.5 Coder 7B — code generation, review
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
   ollama-mistral-7b-instruct:
     type: openai-compatible
@@ -30,6 +39,8 @@ providers:
     model: mistral:7b-instruct
     deployment: on-prem
     description: Mistral 7B local — debug, analysis
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
   ollama-deepseek-ocr:
     type: openai-compatible
@@ -37,6 +48,8 @@ providers:
     model: deepseek-ocr:3b
     deployment: on-prem
     description: DeepSeek OCR 3B — optical character recognition
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
   # ── Cloud providers (optional) ──────────────────────
   mistral-ocr-2512-cloud:
@@ -46,6 +59,8 @@ providers:
     deployment: cloud
     api_key_env: MISTRAL_API_KEY
     description: Mistral OCR 2512 cloud endpoint
+    cost_per_1k_input_tokens: 0.001
+    cost_per_1k_output_tokens: 0.001
 
   openrouter-step-3.5-flash-cloud:
     type: openai-compatible
@@ -54,6 +69,8 @@ providers:
     deployment: cloud
     api_key_env: OPENROUTER_API_KEY
     description: StepFun 3.5 Flash free cloud
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
   openrouter-mistral-small-3.1-24b-instruct-cloud:
     type: openai-compatible
@@ -62,6 +79,8 @@ providers:
     deployment: cloud
     api_key_env: OPENROUTER_API_KEY
     description: Mistral Small 3.1 24B Instruct free cloud
+    cost_per_1k_input_tokens: 0.0
+    cost_per_1k_output_tokens: 0.0
 
   #openai-cloud:
   #  type: openai-compatible
@@ -70,3 +89,5 @@ providers:
   #  deployment: cloud
   #  api_key_env: OPENAI_API_KEY
   #  description: OpenAI GPT-4o-mini cloud
+  #  cost_per_1k_input_tokens: 0.15
+  #  cost_per_1k_output_tokens: 0.60

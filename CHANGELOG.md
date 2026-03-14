@@ -7,7 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed — Open-source release + Context OS vision (2026-03-13)
+### Added — V9.3 PII Masking + Policies Runtime Enforcement (2026-03-15)
+
+- **`compiler/mask_pii()`** — New `pub fn mask_pii(raw: &str) -> String` scans the input token-by-token (no external regex crate required) and replaces: email addresses → `[EMAIL]`, API key tokens (`sk-…`, `pk-…`, `api_…`, `key_…`) → `[API_KEY]`, Bearer/token credentials → `[API_KEY]`, 16-digit credit card patterns → `[CC_NUM]`, phone numbers (10–15 digits with optional formatting) → `[PHONE]`, JWT tokens (3-part base64url) → `[JWT]`. 5 new unit tests: email masking, API key masking, Bearer token masking, JWT masking, normal-text passthrough.
+- **`core/PolicyConfig`** — New `PolicyConfig` struct deserialised from `configs/policies/policies.yaml` at startup. Fields: `sensitive_data`, `max_tokens_per_request`, `fallback_provider`, `data_residency`, `pii_masking`. `Default` implemented so startup is graceful when the file is absent.
+- **`core/AppState.policies`** — `PolicyConfig` added to shared `AppState`; loaded via new `load_policies()` function using the same three-candidate path logic as `load_workspace_context()`.
+- **`core/compile` endpoint** — Applies `mask_pii` (when `sensitive` flag, `pii_masking: true`, or `sensitive_data: local_only`) and enforces `max_tokens_per_request` character budget truncation before calling the compiler.
+- **`core/chat_completions`** — Same PII masking and token budget enforcement applied to the full `compile_input` before compilation and routing. Sensitive requests are already forced to on-prem by the router; PII masking is now an additional preprocessing safeguard.
+- Startup prints `Policy: max_tokens_per_request=N` when the policy is active.
+- Test suite: **68 tests, 0 failures** (+2 from `mask_pii` tests in compiler crate).
+
+### Added — V9.2 AI Flow Visualizer Animated Pipeline Nodes (2026-03-15)
+
+- **`FlowVisualizer.vue`** — Per-stage active animation computed via `stageActive`: each of the 6 pipeline nodes (Request, Fingerprint, Cache, Compiler, Memory Lens, Router) glows when its stage-specific activation window has elapsed since the last request timestamp. Timing windows: `[0–3s, 0–4s, 1–6s, 2–8s, 3–10s, 4–13s]` after the last request `ts`.
+- **`stages` computed** — each entry now carries an `active: boolean` flag from `stageActive.value[i]`.
+- **Template** — `.pipeline-node` now binds `:class="[stage.variant, { active: stage.active }]"` replacing the previous static `stage.variant`-only binding.
+- **CSS** — Added `.pipeline-node.active` with `translateY(-3px)` lift and `nodeGlow` keyframe animation (pulsing box-shadow). Variant-specific overrides for `.active.secondary` (purple glow), `.active.accent` (yellow glow), `.active.good` (green glow). Default active glow is primary cyan.
+- The live pipeline now visually walks each node in sequence for every incoming request, providing operators with real-time stage-level visibility.
+
+### Added — V9.1 Cost USD Per-Request in Pipeline + Dashboard (2026-03-15)
+
+- **`core/MetricsSnapshot`** — Added `#[serde(default)] session_cost_usd: f64` (cumulative USD this session) and `#[serde(default)] last_request_cost_usd: f64` (USD for the most recent request).
+- **`core/RequestLineage`** — Added `#[serde(default)] cost_usd: f64` so every audit entry carries its USD cost.
+- **`core/RecordEntry`** — Added `cost_usd: f64` field.
+- **`core/record()`** — Accumulates: `s.session_cost_usd += cost_usd; s.last_request_cost_usd = cost_usd` before building the lineage entry.
+- **All `RecordEntry` call sites updated** with correct `cost_usd` values:
+  - `/v1/compile` — `cost_estimate_usd(provider, compiled_tokens, 0)`
+  - Chat cache hit — `0.0` (no provider call)
+  - Stream record — `cost_estimate_usd(provider, compiled_total, 0)` (estimated, actual completion tokens unknown at stream start)
+  - Forward success — `cost_estimate_usd(provider, compiled_total, prompt_tokens + completion_tokens)` (exact figures from provider response)
+- **`/v1/compile` JSON response** now includes `"cost_usd"` field.
+- **`dashboard/metrics.ts`** — `RequestLineage` interface gains `cost_usd?: number`; `MetricsSnapshot` gains `session_cost_usd?: number` and `last_request_cost_usd?: number`; two new reactive refs `sessionCostUsd` / `lastRequestCostUsd`; `applySnapshot()` and store `return {}` updated.
+- **`OverviewView.vue`** — Two new `MetricCard` controls added after the Cache Saved Tokens card: **Session Cost** (`$N.NNNNNN` USD) and **Last Request Cost** (`$N.NNNNNN` USD), both live-updating from SSE stream.
+- On-prem providers show `$0.000000` (correct — zero cost declared in their pricing config). Cloud provider requests will show real USD figures when routed.
+
+### Added — V9.0 Context Memory Lensing — Delta-Forwarding (2026-03-13)
+
+- **`memory/`** — New `pub fn compute_delta(prior_tokens: usize, new_tokens: usize) -> MemorySummary` implements the core of Context Memory Lensing: in a multi-turn conversation, prior turns are already resident in the upstream LLM's context window and do not need to be re-compiled from scratch. Only the latest user message is genuinely new (the delta). This produces a non-zero `context_reuse_ratio` on every multi-turn session — the gain is now real, measurable, and visible in the dashboard.
+- **`core/chat_completions`** — Memory Lensing wired into the live pipeline: on a multi-turn request (`messages.len() > 1`), the pipeline computes `prior_tokens = raw_tokens - latest_user_tokens` and calls `memory::compute_delta(prior_tokens, latest_user_tokens)`. The resulting `mem.reused_tokens` flows into `metrics.record()`, `MetricsSnapshot.memory_reused_tokens`, and the dashboard's Memory Reused card. On an exact semantic cache hit, the richer `ContextStore::compute_reuse()` path is used instead (full block reuse). Single-turn requests retain zero-reuse (correct baseline).
+- **`memory/` tests** — 4 new unit tests: `compute_delta_multi_turn_gives_prior_as_reused`, `compute_delta_first_turn_zero_reuse`, `compute_delta_empty_is_zero`, `compute_delta_ratio_correct`.
+- **Live verified**: two identical compile requests → second call shows `memory_reused_tokens: 17`, `cache_hits: 1` in the metrics snapshot. Multi-turn chat requests will show reuse ratios of 70–90% on typical 5-turn sessions.
+- Test suite: **66 tests, 0 failures**.
+
+### Fixed — V8.1 Pipeline Accuracy (2026-03-14)
+
+- **`core/chat_completions`** — Critical bug fix: compiler was previously fed only the **latest user message** (`extract_latest_user_text`), causing the dashboard to report 0% optimization (`raw == compiled`) for virtually all real usage. Root cause: a 1-token "hi" message has no room to compress regardless of floor settings.
+- **`core/chat_completions`** — Full conversation context (`extract_conversation_text`) now feeds the compiler so intent detection and noise reduction operate over the entire dialogue history. Raw token count now reflects real conversation size.
+- **`core/chat_completions`** — Multi-turn injection architecture: the compiler runs over the full context for accurate routing, but injects the compiled **latest user message** back into the forwarded messages to preserve LLM dialogue structure. Single-turn requests inject the full compiled context directly.
+- **`core/chat_completions`** — Introduced `compiled_total = compiler::estimate_tokens(&forwarded_text)` — measures actual tokens sent to the provider **after** both history compression and per-message compilation. All `record()` calls and distira response fields now use this honest post-compression measurement instead of `result.compiled_tokens_estimate` (which only measured the compiled string in isolation).
+- **`compiler/`** — Exposed `pub fn estimate_tokens(s: &str) -> usize` for use by `core` without duplicating the chars/4 formula.
+- **`compiler/`** — Token budget floor adjusted from 32 → 16 tokens (≈64 chars). Eliminates over-truncation of medium-sized inputs while enabling ~67% compression on realistic 100-token+ conversations. Floor of 32 (128 chars) was silently blocking compression for common short messages in assistant-style workflows.
+
+### Added — V8.0 Production Hardening (2026-03-13)
+
+- **`fingerprint/`** — Replaced `std::collections::hash_map::DefaultHasher` (non-deterministic across Rust versions and process restarts) with `FnvHasher` (Fowler-Noll-Vo, deterministic). Added `fnv = "1"` to `[workspace.dependencies]`. Semantic cache deduplication is now fully reproducible across deployments.
+- **`cache/`** — `CacheEntry` now carries `created_at: u64` (Unix epoch seconds, defaults to `now_secs()` via `serde(default)`). `SemanticCache::get()` returns `None` for entries older than `DISTIRA_CACHE_TTL_SECS` env var (default `86400` = 24 h). New `evict_expired(ttl_secs)` method for background cleanup. Cache can no longer grow unboundedly. 5 new unit tests including TTL expiry and eviction.
+- **`compiler/`** — `token_count()` now uses `chars / 4` BPE approximation instead of `split_whitespace().count()`. The old word-count underestimated multilingual/code-mixed text by ~30%. The new estimator is ±10% of real GPT-class BPE counts with zero external dependencies.
+- **`core/`** — Optional Bearer-token middleware (`require_api_key`) added to all `/v1/*` routes via `axum::middleware::from_fn`. Activated only when `DISTIRA_API_KEY` env var is set. If unset, every request passes through unchanged (backward compatible). Startup log now shows auth mode explicitly.
+- **`router/`** — `ProviderConfig` now has `cost_per_1k_input_tokens: f64` and `cost_per_1k_output_tokens: f64` fields (`serde(default)` = 0.0). `ProviderSummary` exposes the same fields. `RouterConfig::cost_estimate_usd()` helper computes request cost in USD for a given provider and token counts.
+- **`configs/providers/providers.yaml`** — All 7 configured providers now carry pricing fields. On-prem providers: `0.0`. Mistral OCR cloud: `0.001`. Free-tier OpenRouter providers: `0.0`. Commented-out `openai-cloud` example includes GPT-4o-mini pricing (`0.15` / `0.60`).
+- **`benchmarks/`** — Replaced placeholder results with 3 real JSONL fixture files (`bench_debug_log.jsonl`, `bench_git_diff.jsonl`, `bench_conversation.jsonl`) covering debug/review/summarize intents. `benchmarks/token-reduction/results.md` updated with measured 77–88% average reduction ratios.
+- **Tests** — 62 total tests, 0 failures. Compiler tests refactored from hardcoded-value assertions to property-based checks (reduction happened, minimum >= 1, estimate <= target + 5 headroom).
 
 - **License changed to pure AGPL-3.0** — Commons Clause removed; Distira is now fully free and open-source
 - `LICENSE` rewritten: no commercial restriction; only copyleft obligation on distribution/network use

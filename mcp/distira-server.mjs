@@ -41,7 +41,7 @@ function readDistiraVersion() {
   } catch {
     // fall through to default
   }
-  return "7.7.1";
+  return "8.0.0";
 }
 
 function readCommand(command) {

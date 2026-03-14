@@ -13,6 +13,12 @@ pub struct ProviderConfig {
     pub deployment: Option<String>,
     pub description: Option<String>,
     pub api_key_env: Option<String>,
+    /// Cost in USD per 1 000 input tokens (0.0 for on-prem).
+    #[serde(default)]
+    pub cost_per_1k_input_tokens: f64,
+    /// Cost in USD per 1 000 output tokens (0.0 for on-prem).
+    #[serde(default)]
+    pub cost_per_1k_output_tokens: f64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -62,6 +68,8 @@ pub struct ProviderSummary {
     pub base_url: String,
     pub description: String,
     pub api_key_env: Option<String>,
+    pub cost_per_1k_input_tokens: f64,
+    pub cost_per_1k_output_tokens: f64,
 }
 
 /// Holds the loaded config. Created once at startup, then shared.
@@ -132,6 +140,8 @@ impl RouterConfig {
                 deployment: Some("on-prem".into()),
                 description: Some("Local Ollama".into()),
                 api_key_env: None,
+                cost_per_1k_input_tokens: 0.0,
+                cost_per_1k_output_tokens: 0.0,
             },
         );
         providers.insert(
@@ -143,6 +153,8 @@ impl RouterConfig {
                 deployment: Some("cloud".into()),
                 description: Some("OpenAI cloud".into()),
                 api_key_env: Some("OPENAI_API_KEY".into()),
+                cost_per_1k_input_tokens: 0.15,
+                cost_per_1k_output_tokens: 0.60,
             },
         );
 
@@ -228,10 +240,29 @@ impl RouterConfig {
                 base_url: config.base_url.clone(),
                 description: config.description.clone().unwrap_or_default(),
                 api_key_env: config.api_key_env.clone(),
+                cost_per_1k_input_tokens: config.cost_per_1k_input_tokens,
+                cost_per_1k_output_tokens: config.cost_per_1k_output_tokens,
             })
             .collect();
         summaries.sort_by(|left, right| left.key.cmp(&right.key));
         summaries
+    }
+
+    /// Estimate the USD cost of a request for the given provider.
+    /// `input_tokens` and `output_tokens` should be the estimated token counts.
+    pub fn cost_estimate_usd(
+        &self,
+        provider_name: &str,
+        input_tokens: usize,
+        output_tokens: usize,
+    ) -> f64 {
+        let cfg = self.providers.get(provider_name);
+        if let Some(c) = cfg {
+            (input_tokens as f64 / 1000.0) * c.cost_per_1k_input_tokens
+                + (output_tokens as f64 / 1000.0) * c.cost_per_1k_output_tokens
+        } else {
+            0.0
+        }
     }
 }
 

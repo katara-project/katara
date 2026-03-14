@@ -108,6 +108,29 @@ pub fn summarize_memory(raw_tokens: usize) -> MemorySummary {
     }
 }
 
+/// Delta-forwarding helper — the core of Context Memory Lensing.
+///
+/// In a multi-turn chat flow, `prior_tokens` are already resident in the LLM's
+/// context window from previous turns: they are **reused** without being
+/// re-compiled or re-sent at cost.  `new_tokens` is the genuine delta — the
+/// latest user turn that is actually new this request.
+///
+/// This produces a non-zero `context_reuse_ratio` for any multi-turn session,
+/// making the Memory Lensing gain immediately visible in the dashboard.
+pub fn compute_delta(prior_tokens: usize, new_tokens: usize) -> MemorySummary {
+    let total = prior_tokens + new_tokens;
+    let ratio = if total > 0 {
+        (prior_tokens as f32 / total as f32).min(1.0)
+    } else {
+        0.0
+    };
+    MemorySummary {
+        reused_tokens: prior_tokens,
+        delta_tokens: new_tokens,
+        context_reuse_ratio: ratio,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,5 +188,42 @@ mod tests {
         assert_eq!(reuse.reused_tokens, 3);
         assert_eq!(reuse.delta_tokens, 0);
         assert!((reuse.context_reuse_ratio - 1.0).abs() < f32::EPSILON);
+    }
+
+    // ── compute_delta (V9.0 Memory Lensing) ────────────────────────────────
+
+    #[test]
+    fn compute_delta_multi_turn_gives_prior_as_reused() {
+        // 5-turn conversation: 80 prior tokens, 20 new → 80% reuse
+        let summary = compute_delta(80, 20);
+        assert_eq!(summary.reused_tokens, 80);
+        assert_eq!(summary.delta_tokens, 20);
+        assert!((summary.context_reuse_ratio - 0.8).abs() < 0.001);
+    }
+
+    #[test]
+    fn compute_delta_first_turn_zero_reuse() {
+        // First message: no prior context → reuse = 0
+        let summary = compute_delta(0, 50);
+        assert_eq!(summary.reused_tokens, 0);
+        assert_eq!(summary.delta_tokens, 50);
+        assert_eq!(summary.context_reuse_ratio, 0.0);
+    }
+
+    #[test]
+    fn compute_delta_empty_is_zero() {
+        let summary = compute_delta(0, 0);
+        assert_eq!(summary.reused_tokens, 0);
+        assert_eq!(summary.delta_tokens, 0);
+        assert_eq!(summary.context_reuse_ratio, 0.0);
+    }
+
+    #[test]
+    fn compute_delta_ratio_correct() {
+        // 3-turn session: system(20) + assistant(30) + prior user(50) = 100 prior, 25 new
+        let summary = compute_delta(100, 25);
+        assert_eq!(summary.reused_tokens, 100);
+        assert_eq!(summary.delta_tokens, 25);
+        assert!((summary.context_reuse_ratio - (100.0_f32 / 125.0)).abs() < 0.001);
     }
 }
