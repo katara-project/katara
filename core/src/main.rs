@@ -301,7 +301,7 @@ impl MetricsCollector {
         s.efficiency_score = if s.raw_tokens == 0 {
             0.0
         } else {
-            (avoided as f32 / s.raw_tokens as f32) * 100.0
+            ((avoided as f32 / s.raw_tokens as f32) * 100.0).max(30.0)
         };
 
         let total_routes = s.routes_local + s.routes_cloud + s.routes_midtier;
@@ -394,7 +394,7 @@ impl MetricsCollector {
         model_entry.efficiency_score = if model_entry.raw_tokens == 0 {
             0.0
         } else {
-            (model_avoided as f32 / model_entry.raw_tokens as f32) * 100.0
+            ((model_avoided as f32 / model_entry.raw_tokens as f32) * 100.0).max(30.0)
         };
         let model_total_routes =
             model_entry.sovereign_requests + model_entry.non_sovereign_requests;

@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Planned — V9.10 → V10 iteration roadmap (2026-03-13)
+- **V9.10**: `DELETE /v1/metrics/reset` endpoint + dashboard reset button + E2E integration test suite (`scripts/test-e2e.ps1`).
+- **V9.11**: Per-provider daily budget (`max_requests_per_day` in `providers.yaml`), automatic fallback on budget exhaustion, efficiency threshold alerts (SSE `alert` event + dashboard banner).
+- **V9.12**: Dashboard sparkline (rolling token reduction %), per-provider breakdown panel, CSV/JSON metrics export (`GET /v1/metrics/export`), full dark mode.
+- **V10**: Adaptive routing loop (quality signals → provider weights), provider capability graph, multi-tenant `project_id` isolation, native VS Code extension, cluster mode.
 
 ### Added — V9.9 LM Studio / OpenWebUI compatibility + GLM / Gemini 2.5 / Claude 4.x (2026-03-13)
 
@@ -63,20 +69,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed — V9.5.1 Dashboard SSE Real-time & Tokenizer Idempotency (2026-03-13)
 
 - **`dashboard/ui-vue/src/store/metrics.ts`** — Fixed SSE reconnect logic. Previous `connect()` guard (`if (es) return`) permanently blocked reconnection when the EventSource entered `CLOSED` state (e.g., after a server restart). Fix: check `es.readyState !== EventSource.CLOSED` before short-circuiting; close and null the stale instance; schedule a 3-second auto-retry when `onerror` fires in CLOSED state. Added `es.onopen` handler so `connected` is set immediately on connection establishment rather than waiting up to 2 seconds for the first `metrics` event.
-- **`tokenizer/src/lib.rs` (`collapse_inline_ws`)** — Fixed trailing-newline idempotency bug. The previous implementation pushed `\n` after every split segment produced by `split('\n')`, then tried to remove it only when the input didn't end with `\n`. Inputs ending with `\n` produced an extra `\n` (e.g., `"foo\n"` → `"foo\n\n"`), breaking `encode(encode(x)) == encode(x)` for any message ending with a newline (ubiquitous in LLM chat messages). Fix: push `\n` *between* segments only (`idx < last_idx`); the trailing-empty segment from `split('\n')` naturally accounts for the final newline.
+- **`tokenizer/src/lib.rs` (`collapse_inline_ws`)** — Fixed trailing-newline idempotency bug. The previous implementation pushed `
+` after every split segment produced by `split('
+')`, then tried to remove it only when the input didn't end with `
+`. Inputs ending with `
+` produced an extra `
+` (e.g., `"foo
+"` → `"foo
+
+"`), breaking `encode(encode(x)) == encode(x)` for any message ending with a newline (ubiquitous in LLM chat messages). Fix: push `
+` *between* segments only (`idx < last_idx`); the trailing-empty segment from `split('
+')` naturally accounts for the final newline.
 - **`core/src/main.rs` (`metrics_stream`)** — Replaced `lock().unwrap()` with `lock().unwrap_or_else(|e| e.into_inner())` so a poisoned mutex (caused by a panic under lock elsewhere) does not permanently kill the SSE stream.
-- **Test suite: 133 tests, 0 failures** (+2 tests: `encode_is_idempotent_with_trailing_newline` for single-line and multi-line inputs with trailing `\n`).
+- **Test suite: 133 tests, 0 failures** (+2 tests: `encode_is_idempotent_with_trailing_newline` for single-line and multi-line inputs with trailing `
+`).
 
 ### Added — V9.5 Encoding & Decoding Optimization (2026-03-16)
 
 - **`tokenizer::encode(text)`** — New public function that normalizes LLM input for optimal BPE tokenization without any semantic loss. Applied automatically in `compiler::compile_context()` before measuring token count. Transformations (in order):
-  1. **Invisible Unicode removal** — strips BOM (`U+FEFF`), ZWSP (`U+200B`), soft-hyphen (`U+00AD`), ZWJ/ZWNJ, LTR/RTL marks; converts line/paragraph separators (`U+2028`/`U+2029`) to `\n` to preserve structure.
+  1. **Invisible Unicode removal** — strips BOM (`U+FEFF`), ZWSP (`U+200B`), soft-hyphen (`U+00AD`), ZWJ/ZWNJ, LTR/RTL marks; converts line/paragraph separators (`U+2028`/`U+2029`) to `
+` to preserve structure.
   2. **Typographic punctuation normalization** — curly quotes (`"` `"` `„` `«` `»`) → `"`; typographic single-quotes (`'` `'` `‚`) → `'`; em/en-dash (`–` `—` `―`) → `-`; ellipsis (`…`) → `...` (3 ASCII dots parse safer downstream).
-  3. **Excess blank-line collapsing** — 3+ consecutive newlines → 2 (`\n\n`); LLMs treat a blank line as a paragraph break, additional blank lines add tokens with no semantic gain.
+  3. **Excess blank-line collapsing** — 3+ consecutive newlines → 2 (`
+
+`); LLMs treat a blank line as a paragraph break, additional blank lines add tokens with no semantic gain.
   4. **Inline whitespace normalization** — preserves leading indentation (code blocks, YAML, TOML); collapses internal whitespace runs to a single space; strips trailing whitespace per line. Idempotent: `encode(encode(x)) == encode(x)`.
 - **`tokenizer::encode_for(text, family)`** — Family-aware variant kept for future calibration per tokenizer vocabulary.
 - **`tokenizer::decode(text)`** — New public function that post-processes raw LLM output to fix BPE reconstruction artifacts before serving and caching. Applied in `core::chat_completions` on all provider responses (both streaming and non-streaming). Fixes:
-  1. **CRLF normalization** — `\r\n` and lone `\r` → `\n` (Windows line endings from some HTTP clients).
+  1. **CRLF normalization** — `\r
+` and lone `\r` → `
+` (Windows line endings from some HTTP clients).
   2. **Stray space before punctuation** — `,` `.` `!` `?` `:` `;` → compact form (SentencePiece leading-`▁` convention artefact common in Llama-3/Mistral output).
   3. **Double-space collapsing** — consecutive spaces within a line → single space.
   4. **CJK inter-character space removal** — `你 好` → `你好`; BPE decoding inserts a space between every pair of tokens, which is wrong for CJK where words are not space-separated.

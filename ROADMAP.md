@@ -348,8 +348,40 @@ Wave A progress:
 - Match arms in `count_for()` gated with `#[cfg(feature)]` — clean compilation in both modes, no dead-code warnings.
 - Test suite: 142 tests, 0 failures (+6 Gpt4o tests, +4 exact GPT-4 tests).
 
+### V9.10 — Metrics Reset & E2E Integration Tests
+
+**Status:** Planned.
+
+- `DELETE /v1/metrics/reset` endpoint — reset all counters without restarting the server.
+- Dashboard "Reset metrics" button triggering the new endpoint.
+- End-to-end integration test suite: send a real HTTP request through the pipeline → assert metrics increment correctly (request count, token reduction, intent routing).
+- Test utility: `scripts/test-e2e.ps1` covering at least `compile → route → metrics` for each intent.
+
+### V9.11 — Provider Budget & Alerting
+
+**Status:** Planned.
+
+- Per-provider daily request budget (`max_requests_per_day`) configurable in `providers.yaml`.
+- Automatic fallback to the next available provider when budget is exhausted.
+- Efficiency threshold alert: configurable minimum efficiency score; logs a `WARN` and emits an SSE `alert` event when breached.
+- Dashboard alert banner displayed when backend emits an `alert` SSE event.
+
+### V9.12 — Dashboard Analytics
+
+**Status:** Planned.
+
+- Sparkline chart showing token reduction % over the last N requests (rolling window, in-memory).
+- Per-provider breakdown panel: request count, avg token reduction, avg latency per provider.
+- Metrics CSV/JSON export button (`GET /v1/metrics/export?format=csv`).
+- Dashboard dark mode finalized (full component coverage).
+
 ### V10 — Adaptive AI Optimization Network
 
-- Learning routing loop (feedback from response quality)
-- Provider capability graph
-- Automated optimization recommendations
+**Status:** Planned.
+
+- Learning routing loop: collect response quality signals (latency, error rate, user feedback) and feed them back to adjust provider weights dynamically.
+- Provider capability graph: model each provider's strengths per intent; prefer the highest-scoring available provider.
+- Automated optimization recommendations: surface suggestions in dashboard ("Switch codegen to provider X for −15% latency").
+- Multi-tenant support: per-`project_id` metrics isolation and budget enforcement.
+- Native VS Code extension (replaces MCP for tighter IDE integration).
+- Cluster mode: multiple DISTIRA nodes with shared cache and unified metrics aggregation.
