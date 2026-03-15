@@ -9,7 +9,7 @@
 
 [![CI](https://github.com/katara-project/katara/actions/workflows/ci.yml/badge.svg?branch=wip-chf)](https://github.com/katara-project/katara/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-10.12.0-brightgreen.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-10.13.0-brightgreen.svg)](VERSION)
 
 > **Distira reduces token waste before the model call — not after it.**
 
