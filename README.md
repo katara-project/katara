@@ -7,7 +7,7 @@
 
 [![CI](https://github.com/distira-project/distira/actions/workflows/ci.yml/badge.svg?branch=wip-chf)](https://github.com/distira-project/distira/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-10.3.0-brightgreen.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-10.8.0-brightgreen.svg)](VERSION)
 
 > **Distira reduces token waste before the model call — not after it.**
 
