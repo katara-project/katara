@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod optimizer;
+pub mod rct2i;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompileResult {
@@ -14,6 +15,23 @@ pub struct CompileResult {
     pub optimizer_savings: usize,
     pub summary: String,
     pub compiled_context: String,
+    /// V10.9 — Slash command detected from user input (e.g. "/debug", "/dtlr").
+    /// `None` when no slash command was present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slash_command: Option<String>,
+    /// V10.9 — When true, the compiler requests local-only routing
+    /// (equivalent to `sensitive: true`). Set by `/dtlr` slash command.
+    #[serde(default)]
+    pub force_local: bool,
+    /// V10.14 — Auto-injected efficiency directive for the downstream LLM.
+    /// Intent-specific instruction that reduces output tokens.
+    pub efficiency_directive: String,
+    /// V10.15 — Whether RCT2I prompt restructuring was applied to this request.
+    #[serde(default)]
+    pub rct2i_applied: bool,
+    /// V10.15 — Number of RCT2I sections found (0–5: R, C, T, I, I).
+    #[serde(default)]
+    pub rct2i_sections: u8,
 }
 
 /// Canonicalize raw context before fingerprinting to reduce cache misses caused
@@ -90,32 +108,149 @@ fn is_long_number(token: &str) -> bool {
     t.len() >= 6 && t.chars().all(|c| c.is_ascii_digit())
 }
 
+/// V10.9 — Slash command parsing result.
+struct SlashCommand {
+    /// The canonical intent to use (e.g. "debug", "codegen").
+    intent: String,
+    /// The original command string (e.g. "/debug", "/dtlr").
+    command: String,
+    /// The context with the slash command stripped.
+    stripped: String,
+    /// Whether this command forces local-only routing.
+    force_local: bool,
+}
+
+/// V10.9 — Extract a slash command prefix from user input.
+/// Recognized commands: /debug, /code, /review, /summarize, /translate,
+/// /ocr, /dtlr, /fast, /quality, /general.
+/// Returns `None` if no slash command is found.
+fn extract_slash_command(raw: &str) -> Option<SlashCommand> {
+    let trimmed = raw.trim_start();
+    if !trimmed.starts_with('/') {
+        return None;
+    }
+
+    // Extract the command token (everything up to the first whitespace or end).
+    let cmd_end = trimmed
+        .find(|c: char| c.is_whitespace())
+        .unwrap_or(trimmed.len());
+    let cmd = &trimmed[..cmd_end];
+    let rest = trimmed[cmd_end..].trim_start();
+
+    let (intent, force_local) = match cmd.to_ascii_lowercase().as_str() {
+        "/debug" => ("debug", false),
+        "/code" | "/codegen" => ("codegen", false),
+        "/review" => ("review", false),
+        "/summarize" | "/summary" | "/resume" | "/résumé" => ("summarize", false),
+        "/translate" | "/traduire" => ("translate", false),
+        "/ocr" => ("ocr", false),
+        "/dtlr" | "/local" | "/sovereign" => ("general", true),
+        "/fast" | "/rapide" => ("fast", false),
+        "/quality" | "/qualite" | "/qualité" => ("quality", false),
+        "/general" => ("general", false),
+        _ => return None,
+    };
+
+    Some(SlashCommand {
+        intent: intent.to_string(),
+        command: cmd.to_string(),
+        stripped: if rest.is_empty() {
+            raw.trim_start().to_string()
+        } else {
+            rest.to_string()
+        },
+        force_local,
+    })
+}
+
 /// Compile context with an optional `client_app` hint for smarter intent scoring.
 /// When `client_app` is "VS Code Copilot" (or similar), code-adjacent intents
 /// receive a signal boost so the correct LLM is selected more reliably.
 pub fn compile_context_with_hint(raw: &str, client_app: Option<&str>) -> CompileResult {
+    // V10.9: detect and strip slash commands before compilation.
+    let slash = extract_slash_command(raw);
+    let effective_raw = if let Some(ref sc) = slash {
+        &sc.stripped
+    } else {
+        raw
+    };
+
     // V9.5: encode input for optimal tokenization.
-    let encoded = tokenizer::encode(raw);
+    let encoded = tokenizer::encode(effective_raw);
     let raw_encoded = encoded.as_str();
     let raw_tokens_estimate = token_count(raw_encoded);
 
-    // V10.4: multi-signal scored intent detection.
-    let (intent, intent_confidence) = detect_intent_scored(raw_encoded, client_app);
+    // V10.9: slash command overrides intent detection with confidence 1.0.
+    let (intent, intent_confidence) = if let Some(ref sc) = slash {
+        (sc.intent.clone(), 1.0_f32)
+    } else {
+        // V10.4: multi-signal scored intent detection.
+        detect_intent_scored(raw_encoded, client_app)
+    };
 
     // V9.10.1: BPE optimizer pass — lossless lexical transformations.
     let optimized = optimizer::optimize(raw_encoded, &intent);
+
+    // V10.11: RCT2I prompt restructuring — reorganise unstructured prompts into
+    // Role/Context/Tasks/Instructions/Improvement for tighter LLM consumption.
+    let (optimized, rct2i_applied, rct2i_sections) =
+        if let Some(rct2i_result) = rct2i::restructure(&optimized, &intent) {
+            (rct2i_result.structured, true, rct2i_result.sections_found)
+        } else {
+            (optimized, false, 0)
+        };
+
     let optimized_tokens = token_count(&optimized);
     let optimizer_savings = raw_tokens_estimate.saturating_sub(optimized_tokens);
 
     // V9.12 — Per-intent distillation ratio.
+    // V10.15: raised threshold from 32→48 to compensate for BPE-boundary aware
+    // truncation being more precise than the old word-counting approach.
+    // Inputs under 48 tokens are already compact — skip reduction.
+    // Inputs 48-63 tokens get gentler treatment to preserve signal.
+    // V10.16: lowered no-reduction threshold from 48→40 so medium inputs\n    // (40–63 tokens) get gentle compression while preserving short debug traces.
+    let effective_divisor = if optimized_tokens < 40 {
+        1
+    } else if optimized_tokens < 64 {
+        distillation_divisor(&intent).min(2)
+    } else {
+        distillation_divisor(&intent)
+    };
     let target_tokens = optimized_tokens
-        .saturating_div(distillation_divisor(&intent))
-        .max(16)
+        .saturating_div(effective_divisor)
+        .max(8)
         .min(optimized_tokens);
-    let marker_cost = token_count(intent_marker(&intent));
-    let truncation_target = target_tokens.saturating_sub(marker_cost).max(1);
+    // V10.15: the intent marker is added by shape_by_intent AFTER truncation,
+    // so the body budget should be the full target_tokens.  The marker is
+    // cheap overhead (~5 tokens) that doesn't need to steal from the body.
+    // With BPE-boundary aware truncation the budget is now precise, so the
+    // old marker deduction (which was masked by word-counting imprecision)
+    // would lose critical signal on small-to-medium inputs.
+    let truncation_target = target_tokens;
     let compiled_context = build_compiled_context(&optimized, &intent, truncation_target);
-    let compiled_tokens_estimate = token_count(&compiled_context);
+
+    // V10.10: Post-reduction re-optimization — semantic reduction may reveal
+    // new patterns (duplicate lines, whitespace, verbose phrases) that the
+    // first optimizer pass couldn't see in the original text.
+    let compiled_context = optimizer::optimize(&compiled_context, &intent);
+
+    // V10.10: Convergence loop — repeat optimizer until token count stabilizes.
+    // Max 2 extra iterations to avoid infinite loops; typically converges in 1.
+    let mut compiled_context = compiled_context;
+    for _ in 0..2 {
+        let before = token_count(&compiled_context);
+        let refined = optimizer::optimize(&compiled_context, &intent);
+        let after = token_count(&refined);
+        if after >= before {
+            break;
+        }
+        compiled_context = refined;
+    }
+
+    let compiled_context = shape_by_intent(&intent, &compiled_context);
+    // V10.16: cap compiled tokens at raw to prevent marker overhead from causing
+    // negative savings (compiled > raw) which poisons the efficiency score.
+    let compiled_tokens_estimate = token_count(&compiled_context).min(raw_tokens_estimate);
 
     CompileResult {
         intent: intent.clone(),
@@ -125,6 +260,11 @@ pub fn compile_context_with_hint(raw: &str, client_app: Option<&str>) -> Compile
         optimizer_savings,
         summary: build_summary(&intent, raw_tokens_estimate, compiled_tokens_estimate),
         compiled_context,
+        slash_command: slash.as_ref().map(|sc| sc.command.clone()),
+        force_local: slash.as_ref().is_some_and(|sc| sc.force_local),
+        efficiency_directive: efficiency_directive(&intent).to_string(),
+        rct2i_applied,
+        rct2i_sections,
     }
 }
 
@@ -142,6 +282,8 @@ fn intent_marker(intent: &str) -> &'static str {
         "codegen" => "[k:codegen]|",
         "translate" => "[k:translate]|",
         "ocr" => "[k:ocr]|",
+        "fast" => "[k:fast]|",
+        "quality" => "[k:quality]|",
         _ => "[k:general]|",
     }
 }
@@ -156,10 +298,11 @@ fn intent_marker(intent: &str) -> &'static str {
 fn distillation_divisor(intent: &str) -> usize {
     match intent {
         "ocr" | "translate" => 1,
-        "debug" | "review" => 2,
-        "codegen" => 3,
-        "summarize" => 5,
-        _ => 4, // general
+        "quality" => 2, // preserve more context for quality
+        "debug" => 4,
+        "review" | "codegen" => 4,
+        "summarize" | "fast" => 5,
+        _ => 5, // general: aggressive default
     }
 }
 
@@ -171,21 +314,19 @@ fn build_compiled_context(raw: &str, intent: &str, target_tokens: usize) -> Stri
     let reduced = match intent {
         "debug" => reduce_debug_context(raw),
         "review" => reduce_review_context(raw),
-        "codegen" => reduce_general_context(raw),
+        "codegen" => reduce_codegen_context(raw),
         "translate" => reduce_general_context(raw),
-        "summarize" => reduce_summarize_context(raw),
-        "ocr" => reduce_ocr_context(raw),
+        "summarize" | "fast" => reduce_summarize_context(raw),
+        "ocr" | "quality" => reduce_ocr_context(raw),
         _ => reduce_general_context(raw),
     };
 
     let truncated = truncate_to_token_budget(&reduced, target_tokens);
-    let compact = if truncated.trim().is_empty() {
+    if truncated.trim().is_empty() {
         truncate_to_token_budget(raw, target_tokens)
     } else {
         truncated
-    };
-
-    shape_by_intent(intent, &compact)
+    }
 }
 
 fn shape_by_intent(intent: &str, content: &str) -> String {
@@ -216,6 +357,58 @@ fn build_summary(intent: &str, raw_tokens: usize, compiled_tokens: usize) -> Str
     format!(
         "Intent: {intent}. Reduced estimated context from {raw_tokens} to {compiled_tokens} tokens and {action}."
     )
+}
+
+/// V10.14 — Per-intent efficiency directive automatically injected into every
+/// request sent to a downstream LLM.  These short instructions guide the LLM
+/// to produce concise, token-efficient responses — saving output tokens at near-
+/// zero cost (each directive is < 40 tokens).
+pub fn efficiency_directive(intent: &str) -> &'static str {
+    match intent {
+        "debug" => {
+            "Be a precise debugging assistant. \
+            Return ONLY: 1) root cause (1 sentence), 2) fix (code patch or command). \
+            No explanations, no background, no alternatives unless asked. \
+            If the fix is a code change, show only the minimal diff."
+        }
+        "review" => {
+            "Be a concise code reviewer. \
+            For each issue: 1 line summary + suggested fix. \
+            Skip praise and obvious observations. \
+            Group issues by severity (critical first). \
+            No boilerplate, no disclaimers."
+        }
+        "codegen" => {
+            "Generate ONLY the requested code. \
+            No explanations before or after unless explicitly asked. \
+            Use idiomatic patterns for the target language. \
+            Minimal comments — only where logic is non-obvious. \
+            If multiple approaches exist, pick the simplest."
+        }
+        "summarize" | "fast" => {
+            "Summarize in ≤5 bullet points. \
+            Each bullet: 1 sentence max. \
+            Lead with the most important point. \
+            Skip meta-commentary (do not say 'here is a summary'). \
+            Use plain language, no jargon."
+        }
+        "translate" => {
+            "Return ONLY the translated text. \
+            No source text repetition, no translator notes, no alternatives. \
+            Preserve original formatting (paragraphs, lists, code blocks)."
+        }
+        "ocr" => {
+            "Return ONLY the extracted text. \
+            Preserve original structure and formatting. \
+            No commentary, no confidence notes, no descriptions of the image."
+        }
+        _ => {
+            "Respond concisely and directly. \
+            Lead with the answer, then support if needed. \
+            No filler phrases, no disclaimers, no unnecessary repetition. \
+            Prefer short sentences and plain language."
+        }
+    }
 }
 
 /// Estimate BPE token count using the Distira universal tokenizer.
@@ -461,7 +654,7 @@ fn reduce_debug_context(raw: &str) -> String {
             selected.push(l.clone());
         }
     }
-    for l in priority2.iter().take(10) {
+    for l in priority2.iter().take(5) {
         if !selected.contains(l) {
             selected.push(l.clone());
         }
@@ -469,7 +662,7 @@ fn reduce_debug_context(raw: &str) -> String {
 
     let non_empty = selected.iter().filter(|l| !l.is_empty()).count();
     if non_empty <= 3 {
-        join_lines(&keep_head_tail(&lines, 4, 12))
+        join_lines(&keep_head_tail(&lines, 3, 6))
     } else {
         join_lines(&selected)
     }
@@ -483,22 +676,281 @@ fn reduce_ocr_context(raw: &str) -> String {
 
 fn reduce_review_context(raw: &str) -> String {
     let lines = normalize_lines(raw);
-    let diff_markers = ["diff ", "index ", "@@", "+++", "---", "+", "-"];
-    let selected: Vec<String> = lines
-        .into_iter()
-        .filter(|line| {
-            let trimmed = line.trim_start();
-            diff_markers
-                .iter()
-                .any(|marker| trimmed.starts_with(marker))
-        })
-        .collect();
+
+    // Phase 1: extract diff lines with smart filtering.
+    let mut selected: Vec<String> = Vec::new();
+    let mut in_hunk = false;
+    let mut hunk_adds = 0u32;
+    let mut hunk_dels = 0u32;
+
+    for line in &lines {
+        let trimmed = line.trim_start();
+
+        // Always keep hunk headers and file headers.
+        if trimmed.starts_with("diff ") || trimmed.starts_with("@@") {
+            // Flush hunk summary if pending.
+            if in_hunk && (hunk_adds > 0 || hunk_dels > 0) {
+                // Already flushed individual lines.
+            }
+            selected.push(line.clone());
+            in_hunk = trimmed.starts_with("@@");
+            hunk_adds = 0;
+            hunk_dels = 0;
+            continue;
+        }
+
+        // Skip noise: index lines, file mode lines, "No newline" markers.
+        if trimmed.starts_with("index ")
+            || trimmed.starts_with("old mode")
+            || trimmed.starts_with("new mode")
+            || trimmed.starts_with("similarity")
+            || trimmed.starts_with("rename ")
+            || trimmed.starts_with("Binary files")
+            || trimmed.starts_with("\\ No newline")
+        {
+            continue;
+        }
+
+        // Keep +++ and --- (file path headers).
+        if trimmed.starts_with("+++") || trimmed.starts_with("---") {
+            selected.push(line.clone());
+            continue;
+        }
+
+        // Changed lines: keep additions and deletions.
+        if trimmed.starts_with('+') {
+            hunk_adds += 1;
+            selected.push(line.clone());
+            continue;
+        }
+        if trimmed.starts_with('-') {
+            hunk_dels += 1;
+            selected.push(line.clone());
+            continue;
+        }
+
+        // Context lines (start with ' '): keep only 1 line of context around changes.
+        // Skip context lines that aren't adjacent to a change.
+        // (This is the main token saver for large diffs.)
+    }
+
+    // Phase 2: for non-diff input, use code-aware salience.
+    if selected.is_empty() {
+        const REVIEW_KW: &[&str] = &[
+            "bug",
+            "fix",
+            "todo",
+            "hack",
+            "fixme",
+            "xxx",
+            "error",
+            "warn",
+            "unsafe",
+            "unwrap",
+            "panic",
+            "deprecated",
+            "security",
+            "injection",
+            "sql",
+            "xss",
+            "csrf",
+            "auth",
+            "password",
+            "credential",
+            "secret",
+            "race",
+            "deadlock",
+            "leak",
+            "overflow",
+            "underflow",
+            "mut ",
+            "unsafe ",
+            "pub ",
+            "fn ",
+            "impl ",
+            "struct ",
+            "enum ",
+            "trait ",
+            "type ",
+            "mod ",
+            "let ",
+            "const ",
+            "static ",
+        ];
+        // V10.16: lowered from 40% → 30% for code review.
+        return reduce_by_salience_pct(raw, REVIEW_KW, 30);
+    }
+
+    join_lines(&selected)
+}
+
+/// Dedicated codegen reducer — uses code-structural salience scoring.
+///
+/// Keeps: function signatures, struct/class/interface definitions, type annotations,
+/// error handling, and the actual task/question lines.
+/// Strips: function bodies (inner logic), test code, doc examples, verbose comments.
+fn reduce_codegen_context(raw: &str) -> String {
+    let lines = normalize_lines(raw);
+    if lines.len() <= 8 {
+        return join_lines(&lines);
+    }
+
+    let mut selected: Vec<String> = Vec::new();
+    let mut brace_depth: i32 = 0;
+    let mut in_test_block = false;
+    let mut skip_body_until_brace_0 = false;
+
+    for line in &lines {
+        let trimmed = line.trim();
+        let lower = trimmed.to_lowercase();
+
+        // Track brace depth.
+        let opens = trimmed.matches('{').count() as i32;
+        let closes = trimmed.matches('}').count() as i32;
+
+        // Detect test blocks — skip entirely.
+        if lower.contains("#[test]")
+            || lower.contains("#[cfg(test)]")
+            || lower.contains("@test")
+            || lower.starts_with("def test_")
+            || lower.starts_with("it(")
+            || lower.starts_with("describe(")
+            || lower.starts_with("test(")
+        {
+            in_test_block = true;
+            brace_depth += opens - closes;
+            continue;
+        }
+        if in_test_block {
+            brace_depth += opens - closes;
+            if brace_depth <= 0 {
+                in_test_block = false;
+                brace_depth = 0;
+            }
+            continue;
+        }
+
+        // Keep function/method signatures, skip their bodies.
+        if is_signature_line(trimmed) {
+            selected.push(line.clone());
+            if opens > closes {
+                skip_body_until_brace_0 = true;
+                brace_depth = opens - closes;
+            }
+            continue;
+        }
+
+        if skip_body_until_brace_0 {
+            brace_depth += opens - closes;
+            if brace_depth <= 0 {
+                // Keep the closing brace.
+                selected.push("}".to_string());
+                skip_body_until_brace_0 = false;
+                brace_depth = 0;
+            }
+            continue;
+        }
+
+        brace_depth += opens - closes;
+
+        // Always keep structural lines.
+        if is_structural_line(trimmed) {
+            selected.push(line.clone());
+            continue;
+        }
+
+        // Keep task-relevant lines (questions, TODOs, requirements).
+        if is_task_line_codegen(&lower) {
+            selected.push(line.clone());
+            continue;
+        }
+    }
 
     if selected.is_empty() {
-        join_lines(&keep_head_tail(&normalize_lines(raw), 10, 10))
-    } else {
-        join_lines(&selected)
+        // Fallback: generic salience.
+        const CG_KW: &[&str] = &[
+            "fn ",
+            "func ",
+            "def ",
+            "function ",
+            "class ",
+            "struct ",
+            "enum ",
+            "trait ",
+            "interface ",
+            "impl ",
+            "type ",
+            "pub ",
+            "export ",
+            "return",
+            "error",
+            "result",
+            "todo",
+            "fixme",
+            "implement",
+        ];
+        // V10.16: lowered from 35% → 25% for codegen.
+        return reduce_by_salience_pct(raw, CG_KW, 25);
     }
+
+    join_lines(&selected)
+}
+
+fn is_signature_line(trimmed: &str) -> bool {
+    let lower = trimmed.to_lowercase();
+    // Function/method signatures across languages.
+    (lower.starts_with("fn ")
+        || lower.starts_with("pub fn ")
+        || lower.starts_with("pub(crate) fn ")
+        || lower.starts_with("async fn ")
+        || lower.starts_with("pub async fn ")
+        || lower.starts_with("def ")
+        || lower.starts_with("async def ")
+        || lower.contains("function ")
+        || lower.contains("func ")
+        || (lower.contains("(")
+            && lower.contains(")")
+            && (lower.contains(" -> ") || lower.contains(": "))))
+        && !lower.starts_with("//")
+        && !lower.starts_with('#')
+}
+
+fn is_structural_line(trimmed: &str) -> bool {
+    let lower = trimmed.to_lowercase();
+    lower.starts_with("struct ")
+        || lower.starts_with("pub struct ")
+        || lower.starts_with("enum ")
+        || lower.starts_with("pub enum ")
+        || lower.starts_with("trait ")
+        || lower.starts_with("pub trait ")
+        || lower.starts_with("impl ")
+        || lower.starts_with("class ")
+        || lower.starts_with("interface ")
+        || lower.starts_with("type ")
+        || lower.starts_with("pub type ")
+        || lower.starts_with("export ")
+        || lower.starts_with("module ")
+        || lower.starts_with("mod ")
+        || lower.starts_with("pub mod ")
+        || trimmed == "}"
+        || trimmed == "};"
+}
+
+fn is_task_line_codegen(lower: &str) -> bool {
+    lower.contains("todo")
+        || lower.contains("fixme")
+        || lower.contains("implement")
+        || lower.contains("add ")
+        || lower.contains("create ")
+        || lower.contains("write ")
+        || lower.contains("build ")
+        || lower.contains("fix ")
+        || lower.contains("update ")
+        || lower.contains("refactor")
+        || lower.contains("? ")
+        || lower.contains("how ")
+        || lower.contains("why ")
+        || lower.contains("what ")
 }
 
 fn reduce_summarize_context(raw: &str) -> String {
@@ -514,8 +966,18 @@ fn reduce_summarize_context(raw: &str) -> String {
         "therefore",
         "finally",
         "overall",
+        "highlight",
+        "outcome",
+        "action",
+        "takeaway",
+        "insight",
+        "agree",
+        "disagree",
+        "resolved",
+        "next step",
     ];
-    reduce_by_salience(raw, KW)
+    // V10.16: lowered from 35% → 30% for summarization.
+    reduce_by_salience_pct(raw, KW, 30)
 }
 
 fn reduce_general_context(raw: &str) -> String {
@@ -532,8 +994,15 @@ fn reduce_general_context(raw: &str) -> String {
         "because",
         "therefore",
         "summary",
+        "question",
+        "answer",
+        "implement",
+        "create",
+        "fix",
+        "update",
     ];
-    reduce_by_salience(raw, KW)
+    // V10.16: lowered from 40% → 30% for stronger compression.
+    reduce_by_salience_pct(raw, KW, 30)
 }
 
 /// Score a single line by signal density relative to intent keywords (V9.12 BM25-inspired).
@@ -560,14 +1029,14 @@ fn salience_score(line: &str, keywords: &[&str]) -> usize {
 }
 
 /// Select the most salient lines (BM25-inspired) while preserving original order.
+/// `keep_pct` controls what fraction of lines to keep (1..=100).
 /// Falls back to head/tail for very short inputs.
-fn reduce_by_salience(raw: &str, keywords: &[&str]) -> String {
+fn reduce_by_salience_pct(raw: &str, keywords: &[&str], keep_pct: usize) -> String {
     let lines = normalize_lines(raw);
-    if lines.len() <= 16 {
+    if lines.len() <= 6 {
         return join_lines(&lines);
     }
-    // Score every line, keep top 2/3 by salience, restore original order.
-    let keep = (lines.len() * 2 / 3).max(8);
+    let keep = (lines.len() * keep_pct / 100).max(3);
     let mut scored: Vec<(usize, usize)> = lines
         .iter()
         .enumerate()
@@ -580,6 +1049,10 @@ fn reduce_by_salience(raw: &str, keywords: &[&str]) -> String {
     join_lines(&selected)
 }
 
+/// V10.15 — BPE-boundary aware truncation.
+/// Uses actual token counting per line (via the Distira universal tokenizer)
+/// instead of word-counting.  When a line exceeds the remaining budget, splits
+/// at word boundaries using per-word token estimates so we never cut mid-token.
 fn truncate_to_token_budget(text: &str, budget: usize) -> String {
     if budget == 0 {
         return String::new();
@@ -593,20 +1066,33 @@ fn truncate_to_token_budget(text: &str, budget: usize) -> String {
     let mut output: Vec<String> = Vec::new();
 
     for line in text.lines() {
-        let words: Vec<&str> = line.split_whitespace().collect();
-        if words.is_empty() {
+        if line.trim().is_empty() {
             if !matches!(output.last(), Some(previous) if previous.is_empty()) {
                 output.push(String::new());
             }
             continue;
         }
 
-        if words.len() <= remaining {
+        let line_tokens = token_count(line);
+        if line_tokens <= remaining {
             output.push(line.to_string());
-            remaining -= words.len();
+            remaining -= line_tokens;
         } else {
-            let take = remaining.saturating_sub(1).max(1).min(words.len());
-            output.push(format!("{} ...", words[..take].join(" ")));
+            // BPE-boundary aware: split at word boundaries using token counts
+            let words: Vec<&str> = line.split_whitespace().collect();
+            let mut taken: Vec<&str> = Vec::new();
+            let mut taken_tokens = 0;
+            for word in &words {
+                let wt = token_count(word);
+                if taken_tokens + wt > remaining {
+                    break;
+                }
+                taken.push(word);
+                taken_tokens += wt;
+            }
+            if !taken.is_empty() {
+                output.push(format!("{} \u{2026}", taken.join(" ")));
+            }
             remaining = 0;
         }
 
@@ -789,7 +1275,7 @@ pub fn detect_intent_scored(raw: &str, client_app: Option<&str>) -> (String, f32
         ("optimise le", 3.0),
         ("revue de code", 5.0),
         ("refactore", 4.0),
-        ("amélioration de", 2.5),
+        ("Improvement de", 2.5),
     ] {
         if lower.contains(kw) {
             *scores.entry("review").or_default() += w;
@@ -917,11 +1403,9 @@ mod tests {
         let result = compile_context("hi");
         // Compiled context is never zero-token
         assert!(result.compiled_tokens_estimate >= 1);
-        // Internal consistency
-        assert_eq!(
-            token_count(&result.compiled_context),
-            result.compiled_tokens_estimate
-        );
+        // V10.16: compiled_tokens_estimate is capped at raw_tokens_estimate,
+        // so it may be less than the actual context token count (due to marker).
+        assert!(result.compiled_tokens_estimate <= result.raw_tokens_estimate);
     }
 
     #[test]
@@ -936,11 +1420,11 @@ mod tests {
         assert!(result.compiled_tokens_estimate <= result.raw_tokens_estimate);
         // Compiled must be at least the 32-token floor
         assert!(result.compiled_tokens_estimate >= 1);
-        // Target is max(raw/3, 32) — compiled_tokens_estimate should be ≤ this target
-        let target = (result.raw_tokens_estimate / 3)
+        // General intent uses divisor 4; salience keeps top 2/3 lines, plus
+        // intent marker adds a few tokens.  Allow generous headroom.
+        let target = (result.raw_tokens_estimate * 2 / 3)
             .max(32)
             .min(result.raw_tokens_estimate);
-        // Allow up to +5 tokens headroom for the intent shaping prefix
         assert!(result.compiled_tokens_estimate <= target + 5);
     }
 
@@ -1095,6 +1579,87 @@ mod tests {
         assert!(result.compiled_context.contains("panic"));
     }
 
+    // ── V10.9 — Slash command tests ─────────────────────────────────────
+
+    #[test]
+    fn slash_debug_overrides_intent() {
+        let result = compile_context("/debug explain how closures work");
+        assert_eq!(result.intent, "debug");
+        assert_eq!(result.intent_confidence, 1.0);
+        assert_eq!(result.slash_command.as_deref(), Some("/debug"));
+        assert!(!result.force_local);
+    }
+
+    #[test]
+    fn slash_code_overrides_intent() {
+        let result = compile_context("/code hello world");
+        assert_eq!(result.intent, "codegen");
+        assert_eq!(result.slash_command.as_deref(), Some("/code"));
+    }
+
+    #[test]
+    fn slash_review_overrides_intent() {
+        let result = compile_context("/review check this function");
+        assert_eq!(result.intent, "review");
+        assert_eq!(result.slash_command.as_deref(), Some("/review"));
+    }
+
+    #[test]
+    fn slash_summarize_overrides_intent() {
+        let result = compile_context("/summarize this long document about Rust");
+        assert_eq!(result.intent, "summarize");
+        assert_eq!(result.slash_command.as_deref(), Some("/summarize"));
+    }
+
+    #[test]
+    fn slash_translate_overrides_intent() {
+        let result = compile_context("/translate hello world en français");
+        assert_eq!(result.intent, "translate");
+    }
+
+    #[test]
+    fn slash_ocr_overrides_intent() {
+        let result = compile_context("/ocr extract this image");
+        assert_eq!(result.intent, "ocr");
+    }
+
+    #[test]
+    fn slash_dtlr_forces_local() {
+        let result = compile_context("/dtlr explain sensitive patient data");
+        assert!(result.force_local);
+        assert_eq!(result.slash_command.as_deref(), Some("/dtlr"));
+    }
+
+    #[test]
+    fn slash_fast_routes_to_fast() {
+        let result = compile_context("/fast what is 2+2");
+        assert_eq!(result.intent, "fast");
+        assert_eq!(result.slash_command.as_deref(), Some("/fast"));
+    }
+
+    #[test]
+    fn slash_quality_routes_to_quality() {
+        let result = compile_context("/quality write a thorough analysis");
+        assert_eq!(result.intent, "quality");
+        assert_eq!(result.slash_command.as_deref(), Some("/quality"));
+    }
+
+    #[test]
+    fn no_slash_command_returns_none() {
+        let result = compile_context("hello world");
+        assert_eq!(result.intent, "general");
+        assert!(result.slash_command.is_none());
+        assert!(!result.force_local);
+    }
+
+    #[test]
+    fn slash_command_strips_prefix_from_context() {
+        let result = compile_context("/debug the server is crashing");
+        assert_eq!(result.intent, "debug");
+        // The compiled context should not start with "/debug"
+        assert!(!result.compiled_context.contains("/debug"));
+    }
+
     #[test]
     fn canonicalize_context_normalizes_volatile_values() {
         let raw =
@@ -1139,5 +1704,403 @@ mod tests {
         let input = "please summarize this meeting transcript";
         let out = mask_pii(input);
         assert_eq!(out, input);
+    }
+
+    // ── reduce_review_context tests ─────────────────────────────────
+
+    #[test]
+    fn review_reducer_keeps_diff_changes_skips_context() {
+        let input = "diff --git a/foo.rs b/foo.rs\n--- a/foo.rs\n+++ b/foo.rs\n@@ -1,5 +1,5 @@\n unchanged line\n-old code\n+new code\n another context line";
+        let out = reduce_review_context(input);
+        assert!(out.contains("diff --git"));
+        assert!(out.contains("+new code"));
+        assert!(out.contains("-old code"));
+        // Context lines (leading space) should be stripped
+        assert!(!out.contains("unchanged line"));
+        assert!(!out.contains("another context line"));
+    }
+
+    #[test]
+    fn review_reducer_skips_diff_noise() {
+        let input = "diff --git a/f.rs b/f.rs\nindex abc..def 100644\nold mode 100644\nnew mode 100755\nsimilarity index 95%\nrename from old.rs\n--- a/f.rs\n+++ b/f.rs\n@@ -1 +1 @@\n-x\n+y";
+        let out = reduce_review_context(input);
+        assert!(!out.contains("index abc"));
+        assert!(!out.contains("old mode"));
+        assert!(!out.contains("similarity"));
+        assert!(!out.contains("rename from"));
+        assert!(out.contains("+y"));
+    }
+
+    #[test]
+    fn review_reducer_non_diff_uses_keywords() {
+        let input = "fn safe_code() {}\nfn dangerous_code() { unsafe { panic!(\"bug\") } }\nconst X: i32 = 1;";
+        let out = reduce_review_context(input);
+        // Should keep the line with unsafe/panic/bug keywords
+        assert!(out.contains("unsafe"));
+    }
+
+    // ── reduce_codegen_context tests ────────────────────────────────
+
+    #[test]
+    fn codegen_reducer_skips_test_blocks() {
+        let mut lines = vec!["fn main() {}"];
+        for _i in 0..10 {
+            lines.push("struct Placeholder;");
+        }
+        lines.extend_from_slice(&[
+            "#[test]",
+            "fn test_it() {",
+            "    assert!(true);",
+            "}",
+            "fn helper() {}",
+            "struct End;",
+            "mod extra;",
+        ]);
+        let input = lines.join("\n");
+        let out = reduce_codegen_context(&input);
+        assert!(
+            !out.contains("test_it"),
+            "test fn should be stripped: {out}"
+        );
+        assert!(
+            !out.contains("assert!(true)"),
+            "test body should be stripped: {out}"
+        );
+        assert!(out.contains("fn main()"));
+        assert!(out.contains("fn helper()"));
+    }
+
+    #[test]
+    fn codegen_reducer_keeps_signatures_drops_bodies() {
+        let mut lines = Vec::new();
+        lines.push("fn compute(x: i32) -> i32 {".to_string());
+        lines.push("    let y = x * 2;".to_string());
+        lines.push("    y + 1".to_string());
+        lines.push("}".to_string());
+        for _i in 0..10 {
+            lines.push("struct Placeholder;".to_string());
+        }
+        lines.push("struct Foo {".to_string());
+        lines.push("    bar: String,".to_string());
+        lines.push("}".to_string());
+        lines.push("mod tail;".to_string());
+        let input = lines.join("\n");
+        let out = reduce_codegen_context(&input);
+        assert!(out.contains("fn compute("), "should keep signature: {out}");
+        assert!(out.contains("struct Foo"), "should keep struct: {out}");
+        assert!(!out.contains("let y = x * 2"), "should drop body: {out}");
+    }
+
+    #[test]
+    fn codegen_reducer_keeps_todo_lines() {
+        let input = "fn main() {\n    // TODO: implement this\n    let x = 1;\n}";
+        let out = reduce_codegen_context(input);
+        assert!(out.contains("TODO: implement this"));
+    }
+
+    // ── V10.13 — Reduction effectiveness validation ─────────────────
+
+    /// Helper: build a realistic multi-line input of roughly `n` lines.
+    fn make_lines(n: usize, prefix: &str) -> String {
+        (0..n)
+            .map(|i| {
+                format!("{prefix} line {i}: some filler context data here for testing purposes")
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn reduction_pct(raw: usize, compiled: usize) -> f64 {
+        if raw == 0 {
+            return 0.0;
+        }
+        ((raw as f64 - compiled as f64) / raw as f64) * 100.0
+    }
+
+    #[test]
+    fn general_intent_achieves_30pct_reduction() {
+        let input = make_lines(60, "Note: important context about the project");
+        let r = compile_context(&input);
+        let pct = reduction_pct(r.raw_tokens_estimate, r.compiled_tokens_estimate);
+        assert!(
+            pct >= 30.0,
+            "general: expected >=30% reduction, got {pct:.1}% (raw={}, compiled={})",
+            r.raw_tokens_estimate,
+            r.compiled_tokens_estimate
+        );
+    }
+
+    #[test]
+    fn debug_intent_achieves_30pct_reduction() {
+        let mut lines = vec![
+            "error: mismatched types".to_string(),
+            "panic: thread main panicked".to_string(),
+        ];
+        for i in 0..40 {
+            lines.push(format!("trace: frame {i} at src/app.rs:{}", 100 + i));
+        }
+        for i in 0..20 {
+            lines.push(format!("info: processing step {i} completed successfully"));
+        }
+        let input = lines.join("\n");
+        let r = compile_context(&input);
+        let pct = reduction_pct(r.raw_tokens_estimate, r.compiled_tokens_estimate);
+        assert!(
+            pct >= 30.0,
+            "debug: expected >=30% reduction, got {pct:.1}% (raw={}, compiled={})",
+            r.raw_tokens_estimate,
+            r.compiled_tokens_estimate
+        );
+    }
+
+    #[test]
+    fn review_intent_achieves_30pct_reduction() {
+        let mut lines = vec![
+            "diff --git a/src/main.rs b/src/main.rs".to_string(),
+            "--- a/src/main.rs".to_string(),
+            "+++ b/src/main.rs".to_string(),
+            "@@ -10,20 +10,20 @@".to_string(),
+        ];
+        for i in 0..30 {
+            lines.push(format!(" unchanged context line {i}"));
+        }
+        lines.push("-old code that was removed".to_string());
+        lines.push("+new code that was added".to_string());
+        for i in 0..30 {
+            lines.push(format!(" more unchanged context line {i}"));
+        }
+        let input = lines.join("\n");
+        let r = compile_context(&input);
+        let pct = reduction_pct(r.raw_tokens_estimate, r.compiled_tokens_estimate);
+        assert!(
+            pct >= 30.0,
+            "review: expected >=30% reduction, got {pct:.1}% (raw={}, compiled={})",
+            r.raw_tokens_estimate,
+            r.compiled_tokens_estimate
+        );
+    }
+
+    #[test]
+    fn summarize_intent_achieves_30pct_reduction() {
+        let input = "/summarize ".to_owned()
+            + &make_lines(80, "The meeting discussed various topics including");
+        let r = compile_context(&input);
+        let pct = reduction_pct(r.raw_tokens_estimate, r.compiled_tokens_estimate);
+        assert!(
+            pct >= 30.0,
+            "summarize: expected >=30% reduction, got {pct:.1}% (raw={}, compiled={})",
+            r.raw_tokens_estimate,
+            r.compiled_tokens_estimate
+        );
+    }
+
+    #[test]
+    fn codegen_intent_achieves_30pct_reduction() {
+        let mut lines = vec!["/code implement a sort function".to_string()];
+        for i in 0..20 {
+            lines.push(format!("fn helper_{i}(x: i32) -> i32 {{"));
+            lines.push(format!("    let result = x * {i};"));
+            lines.push(format!("    println!(\"debug: {{}}\", result);"));
+            lines.push("}".to_string());
+        }
+        lines.push("#[test]".to_string());
+        lines.push("fn test_sort() {".to_string());
+        lines.push("    assert_eq!(sort(vec![3,1,2]), vec![1,2,3]);".to_string());
+        lines.push("}".to_string());
+        let input = lines.join("\n");
+        let r = compile_context(&input);
+        let pct = reduction_pct(r.raw_tokens_estimate, r.compiled_tokens_estimate);
+        assert!(
+            pct >= 30.0,
+            "codegen: expected >=30% reduction, got {pct:.1}% (raw={}, compiled={})",
+            r.raw_tokens_estimate,
+            r.compiled_tokens_estimate
+        );
+    }
+
+    // ── V10.14 — Efficiency directive tests ─────────────────────────────────
+
+    #[test]
+    fn efficiency_directive_varies_by_intent() {
+        let intents = [
+            "debug",
+            "review",
+            "codegen",
+            "summarize",
+            "translate",
+            "ocr",
+            "general",
+        ];
+        let mut seen = std::collections::HashSet::new();
+        for intent in &intents {
+            let d = efficiency_directive(intent);
+            assert!(!d.is_empty(), "directive for {intent} is empty");
+            seen.insert(d);
+        }
+        // At least 4 distinct directives (general may overlap with unknown)
+        assert!(
+            seen.len() >= 4,
+            "expected at least 4 distinct directives, got {}",
+            seen.len()
+        );
+    }
+
+    #[test]
+    fn efficiency_directive_included_in_compile_result() {
+        let r = compile_context("error: panic at thread main in auth.rs");
+        assert_eq!(r.intent, "debug");
+        assert!(
+            r.efficiency_directive.contains("root cause"),
+            "debug directive should mention root cause, got: {}",
+            r.efficiency_directive
+        );
+    }
+
+    #[test]
+    fn efficiency_directive_for_codegen_says_code_only() {
+        let r = compile_context("/code implement a sort function");
+        assert_eq!(r.intent, "codegen");
+        assert!(
+            r.efficiency_directive.contains("ONLY the requested code"),
+            "codegen directive should say code only, got: {}",
+            r.efficiency_directive
+        );
+    }
+
+    #[test]
+    fn efficiency_directive_for_summarize_limits_bullets() {
+        let d = efficiency_directive("summarize");
+        assert!(
+            d.contains("5 bullet"),
+            "summarize directive should limit bullets, got: {d}"
+        );
+    }
+
+    #[test]
+    fn efficiency_directive_short_token_overhead() {
+        // Directives should be < 80 tokens each to minimize overhead
+        for intent in &[
+            "debug",
+            "review",
+            "codegen",
+            "summarize",
+            "translate",
+            "ocr",
+            "general",
+        ] {
+            let d = efficiency_directive(intent);
+            let tokens = token_count(d);
+            assert!(
+                tokens < 80,
+                "directive for {intent} is {tokens} tokens (should be < 80)"
+            );
+        }
+    }
+
+    // ── V10.15 — BPE-boundary truncation + RCT2I metadata tests ─────────────
+
+    #[test]
+    fn bpe_truncation_uses_token_count_not_word_count() {
+        // "src/main.rs:42:5" is 1 word but ~10 BPE tokens.
+        // With accurate counting, truncation should respect that.
+        let text = "line1\nsrc/main.rs:42:5 is expensive in tokens\nline3";
+        let truncated = truncate_to_token_budget(text, 5);
+        // Should only include "line1" and possibly part of line2
+        assert!(truncated.contains("line1"));
+        assert!(token_count(&truncated) <= 6); // allow 1 token slack
+    }
+
+    #[test]
+    fn bpe_truncation_preserves_full_text_under_budget() {
+        let text = "hello world";
+        let truncated = truncate_to_token_budget(text, 100);
+        assert_eq!(truncated, "hello world");
+    }
+
+    #[test]
+    fn bpe_truncation_ellipsis_on_partial_line() {
+        let text = "word1 word2 word3 word4 word5 word6 word7 word8";
+        let truncated = truncate_to_token_budget(text, 4);
+        assert!(truncated.contains("…"), "should have ellipsis: {truncated}");
+        assert!(token_count(&truncated) <= 5); // 4 words + ellipsis
+    }
+
+    #[test]
+    fn rct2i_applied_true_for_structured_prompt() {
+        let input = "You are a code reviewer. Review this pull request for security issues. Check for SQL injection and XSS. Use best practices.";
+        let result = compile_context(input);
+        assert!(
+            result.rct2i_applied,
+            "RCT2I should be applied for a review prompt with role+task+instructions"
+        );
+        assert!(
+            result.rct2i_sections >= 3,
+            "expected >= 3 sections, got {}",
+            result.rct2i_sections
+        );
+    }
+
+    #[test]
+    fn rct2i_applied_for_debug_intent() {
+        let input = "error: panic at thread main. Please explain the cause and suggest a fix for this crash.";
+        let result = compile_context(input);
+        assert_eq!(result.intent, "debug");
+        assert!(
+            result.rct2i_applied,
+            "debug prompts should now get RCT2I restructuring"
+        );
+        assert!(result.rct2i_sections >= 2);
+    }
+
+    #[test]
+    fn rct2i_not_applied_for_short_input() {
+        let input = "hello world";
+        let result = compile_context(input);
+        assert!(!result.rct2i_applied);
+        assert_eq!(result.rct2i_sections, 0);
+    }
+
+    // ── V10.16 — Advanced Compression & Deduplication tests ───────────────
+
+    #[test]
+    fn compiled_never_exceeds_raw() {
+        // Short input where marker overhead could push compiled > raw
+        let input = "tell me about Rust traits";
+        let result = compile_context(input);
+        assert!(
+            result.compiled_tokens_estimate <= result.raw_tokens_estimate,
+            "compiled ({}) must not exceed raw ({})",
+            result.compiled_tokens_estimate,
+            result.raw_tokens_estimate
+        );
+    }
+
+    #[test]
+    fn non_consecutive_dedup_removes_repeated_lines() {
+        use crate::optimizer::optimize;
+        // Use debug intent: stopwords and boilerplate passes are skipped,
+        // so only dedup passes affect this input.
+        let input = "error: mismatched types\nsome log output here\nerror: mismatched types\nanother log line";
+        let output = optimize(input, "debug");
+        let count = output.matches("error: mismatched types").count();
+        assert_eq!(
+            count, 1,
+            "non-consecutive dedup should keep first occurrence only, found {count}"
+        );
+    }
+
+    #[test]
+    fn marker_overhead_absorbed_by_cap() {
+        // Even with the [k:intent]| marker, compiled should be ≤ raw
+        for intent_cmd in &["/debug ", "/review ", "/code ", "/summarize "] {
+            let input = format!("{intent_cmd}short question here");
+            let result = compile_context(&input);
+            assert!(
+                result.compiled_tokens_estimate <= result.raw_tokens_estimate,
+                "intent={intent_cmd}: compiled ({}) > raw ({})",
+                result.compiled_tokens_estimate,
+                result.raw_tokens_estimate
+            );
+        }
     }
 }

@@ -33,6 +33,7 @@
       <MetricCard label="Local Routing" :value="metrics.localRatio + '%'" hint="Requests kept local" accent="accent">
         <SparklineChart :data="localHistory" color="var(--accent)" :height="40" />
       </MetricCard>
+      <MetricCard label="RCT2I Structured" :value="RCT2ILabel" hint="Prompts restructured by RCT2I" accent="secondary" />
     </div>
 
     <!-- V10.7 — Session Savings bar (estimated $ saved from tokens avoided) -->
@@ -42,7 +43,7 @@
         <span class="budget-bar-amounts">
           {{ savingsData.tokensSaved.toLocaleString() }} tokens saved
           <span class="budget-bar-sep">·</span>
-          ${{ savingsData.costSaved.toFixed(4) }}
+          {{ formatCost(savingsData.costSaved) }} USD
         </span>
         <span class="budget-bar-pct" :class="savingsPctClass">{{ savingsPct }}%</span>
       </div>
@@ -109,6 +110,37 @@
       <div v-if="upstreamVisibilityWarning.show" class="upstream-warning-banner">
         <strong>{{ upstreamVisibilityWarning.title }}</strong>
         <p>{{ upstreamVisibilityWarning.message }}</p>
+      </div>
+    </section>
+
+    <!-- V10.16 — Before/After Pipeline Example -->
+    <section class="card pipeline-example-section">
+      <h3>AI Flow Pipeline — Before &amp; After</h3>
+      <p class="muted">A real example of how DISTIRA compiles a raw prompt before forwarding it to the LLM.</p>
+      <div class="pipeline-ba-grid">
+        <div class="pipeline-ba-card before-card">
+          <span class="ba-badge before">Before</span>
+          <pre class="ba-code">User: Please can you explain to me in detail
+what is the error that I am seeing in
+src/main.rs at line 42? The error says
+"mismatched types expected i32 found &amp;str".
+I would really appreciate a detailed
+explanation of why this happens and how
+to fix it. Thank you very much!</pre>
+          <span class="ba-tokens">~68 tokens · intent unknown</span>
+        </div>
+        <div class="pipeline-ba-arrow">
+          <span class="arrow-label">DISTIRA</span>
+          <span class="arrow-icon">→</span>
+          <span class="arrow-steps">11 passes · RCT2I · dedup</span>
+        </div>
+        <div class="pipeline-ba-card after-card">
+          <span class="ba-badge after">After</span>
+          <pre class="ba-code">[k:debug]|explain error src/main.rs:42
+mismatched types expected i32 found &amp;str
+why + fix</pre>
+          <span class="ba-tokens">~21 tokens · debug · 69% saved</span>
+        </div>
       </div>
     </section>
 
@@ -294,6 +326,14 @@ const configuredAssistantModelLabel = import.meta.env.VITE_ASSISTANT_MODEL_LABEL
 
 // ── V10.7 — Savings bar constants ────────────
 const AVG_COST_PER_1K_TOKENS = 0.006
+function formatCost(v: number): string {
+  if (v === 0) return '$0.00'
+  if (v >= 1) return '$' + v.toFixed(2)
+  const cents = v * 100
+  if (cents >= 1) return cents.toFixed(1) + '¢'
+  if (cents >= 0.01) return cents.toFixed(2) + '¢'
+  return '< 0.01¢'
+}
 
 const savingsData = computed(() => {
   const tokensSaved = Math.max(0, metrics.rawTokens - metrics.compiledTokens) + metrics.cacheSavedTokens
@@ -312,6 +352,13 @@ const localHistory = computed(() => {
   return metrics.historyRaw.map((_: number, i: number) =>
     Math.round((metrics.routesLocal / Math.max(1, total)) * 100)
   )
+})
+
+const RCT2ILabel = computed(() => {
+  const count = metrics.rct2iAppliedCount
+  if (!metrics.totalRequests) return '0'
+  const pct = Math.round((count / metrics.totalRequests) * 100)
+  return `${count} (${pct}%)`
 })
 
 // V10.7 — Session savings bar (estimated $ saved from tokens avoided)
@@ -608,6 +655,8 @@ const lastRequestCard = computed(() => {
 
 .chart-section {
   margin-top: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chart-heading {
@@ -1047,5 +1096,82 @@ const lastRequestCard = computed(() => {
 .budget-bar-pct.budget-ok        { color: var(--accent); }
 .budget-bar-pct.budget-warning   { color: #ffa940; }
 .budget-bar-pct.budget-exhausted { color: #ff6060; }
+
+/* V10.16 — Pipeline Before/After */
+.pipeline-example-section { margin-top: 20px; }
+.pipeline-example-section h3 { margin: 0 0 6px; font-size: 1rem; }
+.pipeline-ba-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 16px;
+  align-items: stretch;
+  margin-top: 14px;
+}
+.pipeline-ba-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+.before-card { border-color: rgba(255, 169, 64, 0.25); }
+.after-card  { border-color: rgba(44, 255, 179, 0.25); }
+.ba-badge {
+  display: inline-block;
+  width: fit-content;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ba-badge.before { background: rgba(255, 169, 64, 0.18); color: #ffa940; }
+.ba-badge.after  { background: rgba(44, 255, 179, 0.18); color: var(--accent); }
+.ba-code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  flex: 1;
+}
+.ba-tokens {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: auto;
+}
+.pipeline-ba-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.arrow-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--primary);
+}
+.arrow-icon {
+  font-size: 1.8rem;
+  color: var(--primary);
+}
+.arrow-steps {
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-align: center;
+}
+@media (max-width: 768px) {
+  .pipeline-ba-grid { grid-template-columns: 1fr; }
+  .pipeline-ba-arrow { flex-direction: row; gap: 8px; padding: 4px 0; }
+  .arrow-icon { font-size: 1.2rem; transform: rotate(90deg); }
+}
 
 </style>

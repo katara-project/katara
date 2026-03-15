@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo ""
-echo "  DISTIRA — Sovereign AI Context Operating System"
+echo "  DISTIRA — The AI Context Compiler"
 echo "  Bootstrap script for Linux / macOS"
 echo "  ──────────────────────────────────────────────"
 echo ""

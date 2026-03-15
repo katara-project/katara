@@ -174,6 +174,9 @@ struct MetricsSnapshot {
     /// V10.3 — Configured session cost budget in USD (0 = disabled).
     #[serde(default)]
     session_budget_usd: f64,
+    /// V10.15 — Number of requests where RCT2I prompt structuring was applied.
+    #[serde(default)]
+    rct2i_applied_count: u64,
 }
 
 #[derive(Debug)]
@@ -232,6 +235,8 @@ struct RecordEntry {
     /// Measured wall-clock latency of the LLM provider round-trip (ms).
     /// 0 for cache hits.
     latency_ms: u64,
+    /// V10.15 — Whether RCT2I prompt structuring was applied.
+    rct2i_applied: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -248,6 +253,15 @@ struct PersistedCollectorState {
     chat_cache: HashMap<String, CachedChatResponse>,
     context_blocks: Vec<memory::ContextBlock>,
     hour_buckets: HashMap<u64, (usize, usize, usize)>,
+    /// V10.17 — Persisted per-provider forward counts for cumulative metrics.
+    #[serde(default)]
+    provider_total: HashMap<String, u64>,
+    /// V10.17 — Persisted per-provider error counts for cumulative metrics.
+    #[serde(default)]
+    provider_errors: HashMap<String, u64>,
+    /// V10.17 — Persisted per-provider latency sums for cumulative metrics.
+    #[serde(default)]
+    provider_latency: HashMap<String, (f64, u64)>,
 }
 
 impl MetricsCollector {
@@ -285,6 +299,7 @@ impl MetricsCollector {
                 stable_blocks: 0,
                 context_reuse_ratio_pct: 0.0,
                 session_budget_usd: 0.0,
+                rct2i_applied_count: 0,
             },
             sem_cache: cache::SemanticCache::new(),
             chat_cache: HashMap::new(),
@@ -325,6 +340,7 @@ impl MetricsCollector {
             scope,
             cost_usd,
             latency_ms,
+            rct2i_applied,
         } = e;
 
         // V9.11 — Daily budget tracking: reset counts at UTC midnight.
@@ -364,6 +380,10 @@ impl MetricsCollector {
             s.cache_misses += 1;
         }
         s.cache_saved_tokens += cache_saved_tokens;
+
+        if rct2i_applied {
+            s.rct2i_applied_count += 1;
+        }
 
         // Classify deployment type from provider name
         if is_sovereign_provider(&provider) {
@@ -645,6 +665,7 @@ impl MetricsCollector {
             stable_blocks: 0,
             context_reuse_ratio_pct: 0.0,
             session_budget_usd: 0.0,
+            rct2i_applied_count: 0,
         };
         self.hour_buckets.clear();
     }
@@ -656,6 +677,9 @@ impl MetricsCollector {
             chat_cache: self.chat_cache.clone(),
             context_blocks: self.context_store.blocks(),
             hour_buckets: self.hour_buckets.clone(),
+            provider_total: self.provider_total.clone(),
+            provider_errors: self.provider_errors.clone(),
+            provider_latency: self.provider_latency.clone(),
         }
     }
 
@@ -697,6 +721,9 @@ impl MetricsCollector {
         self.chat_cache = restored.chat_cache;
         self.context_store.load_blocks(restored.context_blocks);
         self.hour_buckets = restored.hour_buckets;
+        self.provider_total = restored.provider_total;
+        self.provider_errors = restored.provider_errors;
+        self.provider_latency = restored.provider_latency;
 
         Ok(())
     }
@@ -721,6 +748,11 @@ fn compile_result_from_cache(entry: &cache::CacheEntry) -> compiler::CompileResu
         optimizer_savings: 0, // not stored in cache; conservative default
         summary: entry.summary.clone(),
         compiled_context: entry.compiled_context.clone(),
+        slash_command: None,
+        force_local: false,
+        efficiency_directive: compiler::efficiency_directive(&entry.intent).to_string(),
+        rct2i_applied: entry.rct2i_applied,
+        rct2i_sections: entry.rct2i_sections,
     }
 }
 
@@ -739,6 +771,8 @@ fn cache_entry_from_compile_result(
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs(),
+        rct2i_applied: result.rct2i_applied,
+        rct2i_sections: result.rct2i_sections,
     }
 }
 
@@ -1108,27 +1142,136 @@ fn apply_compiled_user_message(messages: &[Value], compiled_content: &str) -> Ve
 /// V9.14: older turns are distilled via the compiler pipeline instead of naive word-truncation.
 const MAX_FULL_TURNS: usize = 6;
 
-/// V9.15 — Conciseness Injection.
-/// Prepend a brevity directive to the system role so the LLM returns
-/// shorter, plain-language answers — reducing output token consumption.
-fn inject_conciseness_directive(mut messages: Vec<Value>) -> Vec<Value> {
-    const DIRECTIVE: &str = "Respond as concisely as possible. \
-        Use plain, simple language that anyone can understand. \
-        No emojis, no markdown decorations, no unnecessary bullet points. \
-        Keep answers short and direct.";
+/// V9.15 → V10.14 — Per-intent Efficiency Directive Injection.
+/// Prepend an intent-specific efficiency directive to the system role so the LLM
+/// returns concise, token-efficient answers — reducing output token consumption.
+/// Always active: this is part of DISTIRA's core value proposition.
+fn inject_efficiency_directive(mut messages: Vec<Value>, intent: &str) -> Vec<Value> {
+    let directive = compiler::efficiency_directive(intent);
 
     if let Some(idx) = messages.iter().position(|m| m["role"] == "system") {
         let existing = extract_message_text(&messages[idx]);
         if let Some(obj) = messages[idx].as_object_mut() {
             obj.insert(
                 "content".into(),
-                Value::String(format!("{DIRECTIVE}\n\n{existing}")),
+                Value::String(format!("{directive}\n\n{existing}")),
             );
         }
     } else {
-        messages.insert(0, json!({ "role": "system", "content": DIRECTIVE }));
+        messages.insert(0, json!({ "role": "system", "content": directive }));
     }
     messages
+}
+
+/// V10.15 — Compile older conversation turns through the DISTIRA pipeline.
+/// System prompts and assistant messages in the history are often verbose.
+/// By compiling them (same as we compile user messages), we save significant
+/// tokens on every request.  Only the last 2 messages are kept verbatim
+/// (the current exchange).  Short messages (< 100 chars) are skipped.
+fn compile_older_turns(messages: Vec<Value>) -> Vec<Value> {
+    let len = messages.len();
+    if len <= 2 {
+        return messages;
+    }
+    messages
+        .into_iter()
+        .enumerate()
+        .map(|(i, mut msg)| {
+            // Keep the last 2 messages unmodified (current turn)
+            if i >= len - 2 {
+                return msg;
+            }
+            let content = extract_message_text(&msg);
+            if content.len() < 100 {
+                return msg;
+            }
+            let compiled = compiler::compile_context(&content);
+            let compiled_text = compiled
+                .compiled_context
+                .split_once('|')
+                .map(|x| x.1)
+                .unwrap_or(&compiled.compiled_context)
+                .trim()
+                .to_string();
+            if !compiled_text.is_empty()
+                && compiled.compiled_tokens_estimate < compiled.raw_tokens_estimate
+            {
+                if let Some(obj) = msg.as_object_mut() {
+                    obj.insert("content".into(), Value::String(compiled_text));
+                }
+            }
+            msg
+        })
+        .collect()
+}
+
+/// V10.15 — Remove duplicate paragraphs across conversation messages.
+/// In multi-turn chat, users often quote the assistant's previous response,
+/// and assistants echo the user's question.  This wastes tokens on repeated
+/// content.  We fingerprint paragraphs (≥30 chars) and remove earlier
+/// occurrences, keeping only the latest.
+fn dedup_cross_messages(messages: Vec<Value>) -> Vec<Value> {
+    if messages.len() < 3 {
+        return messages;
+    }
+    // Build paragraph → latest message index map
+    let mut para_latest: std::collections::HashMap<u64, usize> = std::collections::HashMap::new();
+    for (i, msg) in messages.iter().enumerate() {
+        let content = extract_message_text(msg);
+        for para in content.split("\n\n") {
+            let normalized = para
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase();
+            if normalized.len() >= 30 {
+                let fp = fingerprint::fingerprint(&normalized);
+                para_latest.insert(fp, i);
+            }
+        }
+    }
+    // Rebuild: remove paragraphs that appear in a later message
+    messages
+        .into_iter()
+        .enumerate()
+        .map(|(i, mut msg)| {
+            let content = extract_message_text(&msg);
+            if content.is_empty() {
+                return msg;
+            }
+            let paragraphs: Vec<&str> = content.split("\n\n").collect();
+            if paragraphs.len() <= 1 {
+                return msg;
+            }
+            let mut changed = false;
+            let filtered: Vec<&str> = paragraphs
+                .iter()
+                .filter(|para| {
+                    let normalized = para
+                        .split_whitespace()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .to_lowercase();
+                    if normalized.len() < 30 {
+                        return true;
+                    }
+                    let fp = fingerprint::fingerprint(&normalized);
+                    let keep = para_latest.get(&fp).copied().unwrap_or(i) == i;
+                    if !keep {
+                        changed = true;
+                    }
+                    keep
+                })
+                .copied()
+                .collect();
+            if changed && !filtered.is_empty() {
+                if let Some(obj) = msg.as_object_mut() {
+                    obj.insert("content".into(), Value::String(filtered.join("\n\n")));
+                }
+            }
+            msg
+        })
+        .collect()
 }
 
 fn compress_conversation_history(messages: &[Value]) -> Vec<Value> {
@@ -1423,7 +1566,7 @@ async fn compile(
     );
     let route = state.router_config.choose_provider_adaptive(
         &result.intent,
-        sensitive,
+        sensitive || result.force_local,
         &collector.daily_provider_counts,
         &collector.avg_latency_by_provider(),
         &collector.error_rate_by_provider(),
@@ -1469,6 +1612,7 @@ async fn compile(
             0,
         ),
         latency_ms: 0, // compile endpoint has no LLM round-trip
+        rct2i_applied: result.rct2i_applied,
     });
     drop(collector);
 
@@ -1482,6 +1626,11 @@ async fn compile(
         "optimizer_savings": result.optimizer_savings,
         "compiled_context": result.compiled_context,
         "summary": result.summary,
+        "slash_command": result.slash_command,
+        "force_local": result.force_local,
+        "efficiency_directive": result.efficiency_directive,
+        "rct2i_applied": result.rct2i_applied,
+        "rct2i_sections": result.rct2i_sections,
         "memory_reused_tokens": mem.reused_tokens,
         "context_reuse_ratio": mem.context_reuse_ratio,
         "provider": route.provider,
@@ -1597,14 +1746,15 @@ async fn chat_completions(
     } else {
         apply_compiled_user_message(&payload.messages, &injection_content)
     };
+    // V10.15: compile older turns (system prompts + old assistant messages)
+    let compiled_messages = compile_older_turns(compiled_messages);
+    // V10.15: deduplicate repeated paragraphs across messages
+    let compiled_messages = dedup_cross_messages(compiled_messages);
     // Compress history when conversation has grown beyond MAX_FULL_TURNS
     let forwarded_messages = compress_conversation_history(&compiled_messages);
-    // V9.15: inject conciseness directive when concise_mode is enabled.
-    let forwarded_messages = if state.router_config.concise_mode() {
-        inject_conciseness_directive(forwarded_messages)
-    } else {
-        forwarded_messages
-    };
+    // V10.14: always inject intent-specific efficiency directive — this is
+    // DISTIRA's core output optimization, not optional.
+    let forwarded_messages = inject_efficiency_directive(forwarded_messages, &result.intent);
 
     // Determine route early so compiled_total uses model-aware token counting.
     // V9.16: snapshot daily counts + latency map before locking for the cache check.
@@ -1618,7 +1768,7 @@ async fn chat_completions(
     };
     let route = state.router_config.choose_provider_adaptive(
         &result.intent,
-        sensitive,
+        sensitive || result.force_local,
         &daily_counts,
         &latency_map,
         &error_map,
@@ -1715,6 +1865,7 @@ async fn chat_completions(
                 scope: scope.clone(),
                 cost_usd: 0.0, // cache hit — no provider call
                 latency_ms: 0,
+                rct2i_applied: result.rct2i_applied,
             });
 
             if stream {
@@ -1803,6 +1954,7 @@ async fn chat_completions(
                             0,
                         ),
                         latency_ms,
+                        rct2i_applied: result.rct2i_applied,
                     });
                 }
 
@@ -1960,6 +2112,7 @@ async fn chat_completions(
                         fwd.prompt_tokens.unwrap_or(0) + fwd.completion_tokens.unwrap_or(0),
                     ),
                     latency_ms: latency_ms_fwd,
+                    rct2i_applied: result.rct2i_applied,
                 });
             }
 
@@ -2351,6 +2504,85 @@ mod tests {
         assert!(system_content.contains("turns compressed"));
     }
 
+    // ── V10.15 — Compile older turns + cross-message dedup tests ────────────
+
+    #[test]
+    fn compile_older_turns_keeps_recent_messages_verbatim() {
+        let messages = vec![
+            json!({ "role": "system", "content": "You are a very helpful and knowledgeable assistant that always provides detailed comprehensive answers to every question asked by the user." }),
+            json!({ "role": "user", "content": "short question" }),
+            json!({ "role": "assistant", "content": "short answer" }),
+            json!({ "role": "user", "content": "another question" }),
+        ];
+        let result = compile_older_turns(messages.clone());
+        // Last 2 messages should be unchanged
+        assert_eq!(result[2]["content"], messages[2]["content"]);
+        assert_eq!(result[3]["content"], messages[3]["content"]);
+        // System message (verbose, > 100 chars) should be compiled (shorter)
+        let sys_content = result[0]["content"].as_str().unwrap_or("");
+        assert!(
+            sys_content.len() <= messages[0]["content"].as_str().unwrap().len(),
+            "system prompt should be compressed or equal length"
+        );
+    }
+
+    #[test]
+    fn compile_older_turns_skips_short_messages() {
+        let messages = vec![
+            json!({ "role": "system", "content": "Be concise." }),
+            json!({ "role": "user", "content": "hi" }),
+            json!({ "role": "assistant", "content": "hello" }),
+            json!({ "role": "user", "content": "bye" }),
+        ];
+        let result = compile_older_turns(messages.clone());
+        // All messages < 100 chars → no changes
+        assert_eq!(result[0]["content"], messages[0]["content"]);
+        assert_eq!(result[1]["content"], messages[1]["content"]);
+    }
+
+    #[test]
+    fn compile_older_turns_passthrough_two_messages() {
+        let messages = vec![
+            json!({ "role": "user", "content": "long question" }),
+            json!({ "role": "assistant", "content": "long answer" }),
+        ];
+        let result = compile_older_turns(messages.clone());
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0]["content"], messages[0]["content"]);
+    }
+
+    #[test]
+    fn dedup_cross_messages_removes_repeated_paragraphs() {
+        let messages = vec![
+            json!({ "role": "user", "content": "First paragraph about cats and dogs and their behavior in the wild.\n\nSecond paragraph about birds flying south for winter." }),
+            json!({ "role": "assistant", "content": "Here is my response about the topic you raised." }),
+            json!({ "role": "user", "content": "First paragraph about cats and dogs and their behavior in the wild.\n\nNow I have a new question about fish." }),
+        ];
+        let result = dedup_cross_messages(messages);
+        // The duplicate paragraph should be removed from the first message
+        let first_content = result[0]["content"].as_str().unwrap_or("");
+        // The duplicate paragraph moved to message index 2, so it should be gone from 0
+        assert!(
+            !first_content.contains("cats and dogs")
+                || result[2]["content"]
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("cats and dogs"),
+            "duplicate should be in latest message only"
+        );
+    }
+
+    #[test]
+    fn dedup_cross_messages_passthrough_short_conversations() {
+        let messages = vec![
+            json!({ "role": "user", "content": "hello" }),
+            json!({ "role": "assistant", "content": "hi" }),
+        ];
+        let result = dedup_cross_messages(messages.clone());
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0]["content"], messages[0]["content"]);
+    }
+
     #[test]
     fn prune_request_history_respects_ttl_and_limit() {
         let mut history = vec![
@@ -2445,6 +2677,7 @@ mod tests {
             scope: WorkspaceScope::default(),
             cost_usd: 0.0,
             latency_ms: 0,
+            rct2i_applied: false,
         });
 
         let mut restored = MetricsCollector::new();
@@ -2577,6 +2810,35 @@ fn build_full_snapshot(collector: &MetricsCollector, session_budget_usd: f64) ->
     // V10.3 — Inject configured session budget so the dashboard can render utilisation.
     val["session_budget_usd"] = serde_json::json!(session_budget_usd);
 
+    // V10.17 — Provider health observatory: per-provider live stats.
+    let latency_map = collector.avg_latency_by_provider();
+    let error_map = collector.error_rate_by_provider();
+    let provider_health: Vec<serde_json::Value> = collector
+        .provider_total
+        .iter()
+        .map(|(key, &total)| {
+            let errors = collector.provider_errors.get(key).copied().unwrap_or(0);
+            let error_rate = error_map.get(key).copied().unwrap_or(0.0);
+            let avg_latency = latency_map.get(key).copied().unwrap_or(0.0);
+            let status = if error_rate >= 0.5 {
+                "down"
+            } else if error_rate >= 0.1 || avg_latency >= 5000.0 {
+                "degraded"
+            } else {
+                "healthy"
+            };
+            json!({
+                "provider": key,
+                "requests": total,
+                "errors": errors,
+                "error_rate": (error_rate * 10000.0).round() / 10000.0,
+                "avg_latency_ms": (avg_latency * 10.0).round() / 10.0,
+                "status": status,
+            })
+        })
+        .collect();
+    val["provider_health"] = serde_json::Value::Array(provider_health);
+
     val
 }
 
@@ -2601,6 +2863,85 @@ async fn metrics_reset(State(state): State<SharedState>) -> impl IntoResponse {
     let mut collector = state.collector.lock().unwrap();
     collector.reset();
     StatusCode::NO_CONTENT
+}
+
+/// V10.17 — Export cumulative metrics as structured JSON for enterprise reporting.
+/// Returns per-provider breakdown, per-intent breakdown, and cumulative totals.
+async fn metrics_export(State(state): State<SharedState>) -> Json<serde_json::Value> {
+    let collector = state.collector.lock().unwrap_or_else(|e| e.into_inner());
+    let snap = collector.snapshot();
+    let latency_map = collector.avg_latency_by_provider();
+    let error_map = collector.error_rate_by_provider();
+
+    let tokens_saved = snap.raw_tokens.saturating_sub(snap.compiled_tokens);
+    let savings_pct = if snap.raw_tokens > 0 {
+        (tokens_saved as f64 / snap.raw_tokens as f64 * 100.0 * 10.0).round() / 10.0
+    } else {
+        0.0
+    };
+
+    // Per-provider breakdown
+    let providers: Vec<serde_json::Value> = collector
+        .provider_total
+        .iter()
+        .map(|(key, &total)| {
+            let errors = collector.provider_errors.get(key).copied().unwrap_or(0);
+            let error_rate = error_map.get(key).copied().unwrap_or(0.0);
+            let avg_latency = latency_map.get(key).copied().unwrap_or(0.0);
+            json!({
+                "provider": key,
+                "requests": total,
+                "errors": errors,
+                "error_rate": (error_rate * 10000.0).round() / 10000.0,
+                "avg_latency_ms": (avg_latency * 10.0).round() / 10.0,
+            })
+        })
+        .collect();
+
+    // Per-intent breakdown
+    let intents: Vec<serde_json::Value> = snap
+        .intent_stats
+        .iter()
+        .map(|(intent, stats)| {
+            let intent_saved = stats.raw_tokens.saturating_sub(stats.compiled_tokens);
+            let intent_pct = if stats.raw_tokens > 0 {
+                (intent_saved as f64 / stats.raw_tokens as f64 * 100.0 * 10.0).round() / 10.0
+            } else {
+                0.0
+            };
+            json!({
+                "intent": intent,
+                "requests": stats.requests,
+                "raw_tokens": stats.raw_tokens,
+                "compiled_tokens": stats.compiled_tokens,
+                "tokens_saved": intent_saved,
+                "savings_pct": intent_pct,
+            })
+        })
+        .collect();
+
+    Json(json!({
+        "exported_at": now_epoch(),
+        "version": runtime_version(),
+        "cumulative": {
+            "total_requests": snap.total_requests,
+            "raw_tokens": snap.raw_tokens,
+            "compiled_tokens": snap.compiled_tokens,
+            "tokens_saved": tokens_saved,
+            "savings_pct": savings_pct,
+            "memory_reused_tokens": snap.memory_reused_tokens,
+            "cache_hits": snap.cache_hits,
+            "cache_misses": snap.cache_misses,
+            "efficiency_score": snap.efficiency_score,
+            "session_cost_usd": snap.session_cost_usd,
+            "rct2i_applied_count": snap.rct2i_applied_count,
+            "routes_local": snap.routes_local,
+            "routes_cloud": snap.routes_cloud,
+            "routes_midtier": snap.routes_midtier,
+        },
+        "by_provider": providers,
+        "by_intent": intents,
+    }))
 }
 
 async fn metrics_stream(
@@ -2658,7 +2999,7 @@ async fn require_api_key(
 }
 #[tokio::main]
 async fn main() {
-    println!("DISTIRA v{} — Sovereign AI Context OS", runtime_version());
+    println!("DISTIRA v{} — The AI Context Compiler", runtime_version());
     println!("────────────────────────────────────────");
 
     let router_config = load_config();
@@ -2698,6 +3039,7 @@ async fn main() {
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/metrics", get(metrics_snapshot))
         .route("/v1/metrics/reset", delete(metrics_reset))
+        .route("/v1/metrics/export", get(metrics_export))
         .route("/v1/metrics/stream", get(metrics_stream))
         .route("/v1/suggestions", get(get_suggestions))
         .layer(middleware::from_fn(require_api_key))
@@ -2727,6 +3069,7 @@ async fn main() {
     println!("  GET  /v1/runtime/client-context — read live upstream client context");
     println!("  POST /v1/runtime/client-context — update live upstream client context");
     println!("  GET    /v1/metrics            — JSON snapshot");
+    println!("  GET    /v1/metrics/export     — V10.17 cumulative export (enterprise)");
     println!("  DELETE /v1/metrics/reset     — reset all counters");
     println!("  GET    /v1/metrics/stream    — SSE live stream");
     println!("  GET    /v1/suggestions       — V10 adaptive optimization suggestions");

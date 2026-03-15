@@ -1,6 +1,6 @@
 # Installation & Configuration Guide
 
-> **DISTIRA v7.7.1** — Sovereign AI Context Operating System
+> **DISTIRA v7.7.1** — The AI Context Compiler
 
 ---
 
@@ -324,7 +324,7 @@ cargo run -p core
 You will see:
 
 ```md
-DISTIRA vx.y.z — Sovereign AI Context OS
+DISTIRA vx.y.z — The AI Context Compiler
 ────────────────────────────────────────
   Config loaded from configs/
     provider: ollama-llama3
@@ -760,8 +760,14 @@ target-dir = "C:/distira-target"
 | `GET` | `/v1/providers` | List configured providers |
 | `POST` | `/v1/compile` | Compile context (no LLM call) |
 | `POST` | `/v1/chat/completions` | Compile + forward to LLM |
+| `GET` | `/v1/runtime/client-context` | Read live upstream client context |
+| `POST` | `/v1/runtime/client-context` | Update live upstream client context |
 | `GET` | `/v1/metrics` | Metrics JSON snapshot |
 | `GET` | `/v1/metrics/stream` | SSE live metrics stream |
+| `DELETE` | `/v1/metrics/reset` | Reset all counters |
+| `GET` | `/v1/suggestions` | Optimization suggestions |
+
+> **Full API guide with examples:** [`docs/api-reference.md`](docs/api-reference.md)
 
 ---
 

@@ -26,6 +26,13 @@
       </div>
     </div>
 
+    <div v-if="metrics.lastRequest" class="last-request-banner">
+      <span class="lr-intent">{{ metrics.lastRequest.intent }}</span>
+      <span class="lr-route">→ {{ metrics.lastRequest.routed_provider }}</span>
+      <span v-if="metrics.lastRequest.sensitive" class="lr-sensitive">sensitive</span>
+      <span class="lr-cost" v-if="metrics.lastRequest.cost_usd">{{ metrics.lastRequest.cost_usd.toFixed(6) }} USD</span>
+    </div>
+
     <div class="routing-panel">
       <h3>LLM Routing</h3>
       <div class="route-branches">
@@ -101,18 +108,27 @@ const semanticFingerprintLabel = computed(() => {
 
 const semanticCacheLabel = computed(() => {
   const last = metrics.lastRequest
-  if (!last) return `${metrics.cacheHitRatio}% hit`
-  const semantic = last.semantic_cache_hit ? 'semantic hit' : 'semantic miss'
-  return `${metrics.cacheHitRatio}% hit · ${semantic}`
+  if (!last) return 'waiting…'
+  if (last.cache_hit && last.semantic_cache_hit) return 'semantic hit'
+  if (last.cache_hit) return 'cache hit'
+  return 'miss'
+})
+
+const last = computed(() => metrics.lastRequest)
+
+const perRequestReduction = computed(() => {
+  const r = last.value?.raw_tokens ?? 0
+  const c = last.value?.compiled_tokens ?? 0
+  return r > 0 ? Math.round(((r - c) / r) * 100) : 0
 })
 
 const stages = computed(() => [
-  { id: 'request', icon: 'inbox', label: 'Request', metric: `${metrics.rawTokens.toLocaleString()} tok`, variant: 'default', active: stageActive.value[0] },
+  { id: 'request', icon: 'inbox', label: 'Request', metric: last.value ? `${last.value.raw_tokens?.toLocaleString() ?? 0} tok` : 'waiting…', variant: 'default', active: stageActive.value[0] },
   { id: 'fingerprint', icon: 'fingerprint', label: 'Fingerprint', metric: semanticFingerprintLabel.value, variant: 'default', active: stageActive.value[1] },
   { id: 'cache', icon: 'zap', label: 'Cache', metric: semanticCacheLabel.value, variant: 'accent', active: stageActive.value[2] },
-  { id: 'compiler', icon: 'wrench', label: 'Compiler', metric: `${metrics.compiledTokens.toLocaleString()} tok`, variant: 'primary', active: stageActive.value[3] },
-  { id: 'memory', icon: 'brain', label: 'Memory Lens', metric: `${metrics.memoryReusedTokens.toLocaleString()} reused`, variant: 'secondary', active: stageActive.value[4] },
-  { id: 'router', icon: 'shield', label: 'Router', metric: `${metrics.localRatio}% local`, variant: 'good', active: stageActive.value[5] },
+  { id: 'compiler', icon: 'wrench', label: 'Compiler', metric: last.value ? `${last.value.compiled_tokens?.toLocaleString() ?? 0} tok (−${perRequestReduction.value}%)` : 'waiting…', variant: 'primary', active: stageActive.value[3] },
+  { id: 'memory', icon: 'brain', label: 'Memory Lens', metric: last.value ? `${(last.value.tokens_saved ?? 0).toLocaleString()} saved` : 'waiting…', variant: 'secondary', active: stageActive.value[4] },
+  { id: 'router', icon: 'shield', label: 'Router', metric: last.value ? `${last.value.routed_provider}` : 'waiting…', variant: 'good', active: stageActive.value[5] },
 ])
 
 const branches = computed(() => {
@@ -238,6 +254,36 @@ const branches = computed(() => {
 .edge-arrow { fill: var(--primary); opacity: 0.6; }
 
 /* ── Routing Panel ── */
+.last-request-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  margin-top: 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.82rem;
+}
+.lr-intent {
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: rgba(57, 211, 255, 0.15);
+  color: var(--primary);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.lr-route { color: var(--muted); }
+.lr-sensitive {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+.lr-cost { margin-left: auto; color: var(--accent); font-weight: 600; }
+
 .routing-panel {
   margin-top: 24px;
   padding-top: 20px;

@@ -3,7 +3,7 @@
 | Attribute | Value |
 | --- | --- |
 | **Product** | DISTIRA |
-| **Tagline** | Sovereign AI Context Operating System |
+| **Tagline** | The AI Context Compiler |
 | **Sub-tagline** | Compile the smallest useful context before every LLM call |
 | **Brand Core** | Compression frame / vice symbol in premium dark blue |
 

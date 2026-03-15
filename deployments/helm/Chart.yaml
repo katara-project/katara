@@ -3,7 +3,7 @@ apiVersion: v2
 name: distira
 version: 7.0.0
 appVersion: "7.0.0"
-description: DISTIRA — Sovereign AI Context Operating System
+description: DISTIRA — The AI Context Compiler
 type: application
 keywords:
   - ai-gateway

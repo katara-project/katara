@@ -29,27 +29,12 @@ import { useMetricsStore } from '../store/metrics'
 
 const metrics = useMetricsStore()
 
-const cacheHitRate = computed(() => {
-  const total = metrics.cacheHits + metrics.cacheMisses
-  return total > 0 ? Math.round((metrics.cacheHits / total) * 100) : 0
-})
+const last = computed(() => metrics.lastRequest)
 
-const tokenReduction = computed(() => {
-  return metrics.rawTokens > 0
-    ? Math.round(((metrics.rawTokens - metrics.compiledTokens) / metrics.rawTokens) * 1000) / 10
-    : 0
-})
-
-const localRoutingPct = computed(() => {
-  const total = metrics.routesLocal + metrics.routesCloud + metrics.routesMidtier
-  return total > 0 ? Math.round((metrics.routesLocal / total) * 100) : 0
-})
-
-const activeProviderCount = computed(() => {
-  const providers = new Set(
-    Object.values(metrics.modelStats).map((s: any) => s.provider ?? s.routed_provider)
-  )
-  return Math.max(providers.size, 1)
+const perReqReduction = computed(() => {
+  const r = last.value?.raw_tokens ?? 0
+  const c = last.value?.compiled_tokens ?? 0
+  return r > 0 ? Math.round(((r - c) / r) * 1000) / 10 : 0
 })
 
 const details = computed(() => [
@@ -57,43 +42,51 @@ const details = computed(() => [
     icon: 'fingerprint',
     title: 'Fingerprinting',
     description: 'SHA-256 hash of trimmed, lowercased input for cache dedup and request tracking.',
-    stat: '< 1ms',
-    statLabel: 'avg latency',
+    stat: last.value?.semantic_fingerprint
+      ? last.value.semantic_fingerprint.slice(0, 12) + '…'
+      : '–',
+    statLabel: 'fingerprint',
   },
   {
     icon: 'zap',
     title: 'Semantic Cache',
     description: 'Identical or near-duplicate prompts served from in-memory cache, skipping redundant LLM calls.',
-    stat: cacheHitRate.value + '%',
-    statLabel: 'cache hit rate',
+    stat: last.value
+      ? (last.value.cache_hit ? (last.value.semantic_cache_hit ? 'Semantic Hit' : 'Hit') : 'Miss')
+      : '–',
+    statLabel: 'last request',
   },
   {
     icon: 'wrench',
     title: 'Context Compiler',
     description: 'Deduplicates, compresses, and reduces context to the minimal useful token set for the detected intent.',
-    stat: tokenReduction.value + '%',
-    statLabel: 'token reduction',
+    stat: last.value
+      ? `${(last.value.raw_tokens ?? 0).toLocaleString()} → ${(last.value.compiled_tokens ?? 0).toLocaleString()} (−${perReqReduction.value}%)`
+      : '–',
+    statLabel: 'tokens: raw → compiled',
   },
   {
     icon: 'brain',
     title: 'Memory Lens',
     description: 'Identifies stable context blocks from prior turns and reuses them, sending only delta tokens.',
-    stat: metrics.memoryReusedTokens.toLocaleString(),
-    statLabel: 'reused tokens',
+    stat: last.value
+      ? `${(last.value.tokens_saved ?? 0).toLocaleString()}`
+      : '–',
+    statLabel: 'tokens saved',
   },
   {
     icon: 'shield',
     title: 'Sovereign Router',
     description: 'Sensitive data routes to local Ollama; general tasks go to cloud; debug to mid-tier — respecting data residency.',
-    stat: localRoutingPct.value + '%',
-    statLabel: 'local routing',
+    stat: last.value ? last.value.routed_provider : '–',
+    statLabel: last.value?.sensitive ? 'forced local (sensitive)' : 'routed provider',
   },
   {
     icon: 'radio',
     title: 'Provider Dispatch',
     description: 'Routes to Ollama, OpenAI-compatible, or Mistral endpoints with automatic fallback and retry.',
-    stat: String(activeProviderCount.value),
-    statLabel: 'active providers',
+    stat: last.value ? last.value.intent : '–',
+    statLabel: 'detected intent',
   },
 ])
 </script>

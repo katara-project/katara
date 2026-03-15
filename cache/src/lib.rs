@@ -30,6 +30,12 @@ pub struct CacheEntry {
     /// Unix timestamp (seconds) when this entry was created.
     #[serde(default = "now_secs")]
     pub created_at: u64,
+    /// V10.17 — Whether RCT2I prompt restructuring was applied.
+    #[serde(default)]
+    pub rct2i_applied: bool,
+    /// V10.17 — Number of RCT2I sections injected.
+    #[serde(default)]
+    pub rct2i_sections: u8,
 }
 
 #[derive(Debug, Default)]
@@ -95,6 +101,8 @@ mod tests {
             summary: "summary".into(),
             compiled_context: context.into(),
             created_at: now_secs(),
+            rct2i_applied: false,
+            rct2i_sections: 0,
         }
     }
 
@@ -125,6 +133,8 @@ mod tests {
             compiled_context: "old response".into(),
             // Simulate an entry created 2 days ago
             created_at: now_secs().saturating_sub(DEFAULT_TTL_SECS + 1),
+            rct2i_applied: false,
+            rct2i_sections: 0,
         });
         // Should be treated as a miss because TTL has passed
         assert!(cache.get(7).is_none());
@@ -141,6 +151,8 @@ mod tests {
             summary: "old".into(),
             compiled_context: "stale".into(),
             created_at: now_secs().saturating_sub(DEFAULT_TTL_SECS + 1),
+            rct2i_applied: false,
+            rct2i_sections: 0,
         });
         cache.insert(fresh_entry(20, "fresh"));
         assert_eq!(cache.len(), 2);

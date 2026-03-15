@@ -4,12 +4,12 @@
   <img src="brand/distira_logo_horizontal.svg" alt="DISTIRA" width="480" />
 </p>
 
-> **Distira is a Sovereign AI Context Operating System.**
+> **Distira is The AI Context Compiler.**
 > It compiles, minimizes, and governs context before every LLM call.
 
 [![CI](https://github.com/katara-project/katara/actions/workflows/ci.yml/badge.svg?branch=wip-chf)](https://github.com/katara-project/katara/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-10.8.0-brightgreen.svg)](VERSION)
+[![Version](https://img.shields.io/badge/version-10.17.0-brightgreen.svg)](VERSION)
 
 > **Distira reduces token waste before the model call — not after it.**
 
@@ -194,7 +194,7 @@ Ready-to-use commented entries for every provider above are in [`configs/provide
 | `dashboard/ui-vue/` | AI Flow Visualizer — Vue 3 + Vite dark dashboard |
 | `configs/` | Provider, routing, policy, and workspace configuration |
 | `deployments/` | Docker, Kubernetes, and Helm manifests |
-| `docs/` | Architecture and implementation notes |
+| `docs/` | Architecture, API reference, and implementation notes |
 | `examples/` | Quick integration examples |
 | `mcp/` | MCP server for VS Code Copilot integration |
 | `benchmarks/` | Reproducible token-reduction fixtures |
@@ -280,6 +280,8 @@ export DISTIRA_CACHE_TTL_SECS=3600  # 1 hour
 ```
 
 ## VS Code Agent Integration
+
+> **Full API documentation:** [`docs/api-reference.md`](docs/api-reference.md) — Complete REST API guide with request/response schemas, metrics explanation, slash commands, and integration recipes.
 
 DISTIRA ships with a built-in MCP (Model Context Protocol) server.
 Once configured, type `@distira` in VS Code Copilot Chat to invoke DISTIRA tools directly.
@@ -377,7 +379,7 @@ See [INSTALL.md](INSTALL.md#vs-code-agent-mcp) for setup instructions and [TESTI
 
 ## Version
 
-Current runtime version: **10.2.0** — served from [VERSION](VERSION) and exposed live via `GET /version`.
+Current runtime version: **10.9.0** — served from [VERSION](VERSION) and exposed live via `GET /version`.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for planned iterations.
 

@@ -86,6 +86,7 @@ export interface MetricsSnapshot {
   alerts?: Array<{ type: string; provider?: string; message: string }>
   stable_blocks?: number
   context_reuse_ratio_pct?: number
+  rct2i_applied_count?: number
   context_blocks_summary?: Array<{
     id: string
     stability: number
@@ -135,6 +136,8 @@ export const useMetricsStore = defineStore('metrics', () => {
   const stableBlocks = ref(0)
   const contextRatioPct = ref(0)
   const contextBlocksSummary = ref<Array<{ id: string; stability: number; token_count: number; intent: string }>>([])
+  const rct2iAppliedCount = ref(0)
+  const providerHealth = ref<Array<{ provider: string; requests: number; errors: number; error_rate: number; avg_latency_ms: number; status: string }>>([])
 
   const cacheHitRatio = computed(() => {
     const total = cacheHits.value + cacheMisses.value
@@ -209,6 +212,8 @@ export const useMetricsStore = defineStore('metrics', () => {
     stableBlocks.value = s.stable_blocks ?? 0
     contextRatioPct.value = s.context_reuse_ratio_pct ?? 0
     contextBlocksSummary.value = s.context_blocks_summary ?? []
+    rct2iAppliedCount.value = s.rct2i_applied_count ?? 0
+    providerHealth.value = (s as any).provider_health ?? []
     lastTs.value = s.ts
   }
 
@@ -342,6 +347,8 @@ export const useMetricsStore = defineStore('metrics', () => {
     stableBlocks,
     contextRatioPct,
     contextBlocksSummary,
+    rct2iAppliedCount,
+    providerHealth,
     connect,
     disconnect,
   }

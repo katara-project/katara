@@ -1,6 +1,6 @@
 # Architecture
 
-Distira is a **Sovereign AI Context Operating System**.
+Distira is **The AI Context Compiler**.
 It sits between clients and LLM providers, compiling the smallest useful context before every LLM call.
 
 ## Request lifecycle

@@ -264,7 +264,7 @@ const server = new McpServer({
 // Tool: distira_compile
 server.tool(
   "distira_compile",
-  "Send context through the DISTIRA pipeline (fingerprint, cache, compiler, memory, router) WITHOUT calling the LLM. Returns intent, compiled tokens, routing decision, cache hit status, and efficiency metrics.",
+  "Send context through the DISTIRA pipeline (fingerprint, cache, compiler, memory, router) WITHOUT calling the LLM. Returns intent, compiled tokens, routing decision, cache hit status, and efficiency metrics. Supports slash commands: /debug, /code, /review, /summarize, /translate, /ocr, /dtlr (force local), /fast, /quality, /general — prefix your context to override intent detection.",
   {
     context: z.string().describe("The raw context/prompt to compile and optimize."),
     sensitive: z.boolean().optional().default(false).describe("If true, forces routing to a local-only provider (sovereign mode)."),
@@ -289,7 +289,7 @@ server.tool(
 // Tool: distira_chat  (compile is done server-side inside /v1/chat/completions)
 server.tool(
   "distira_chat",
-  "Compile context through DISTIRA then forward to the best LLM provider (Ollama local, Mistral cloud, etc.). Returns an OpenAI-compatible chat completion with a distira section showing optimization stats.",
+  "Compile context through DISTIRA then forward to the best LLM provider (Ollama local, Mistral cloud, etc.). Returns an OpenAI-compatible chat completion with a distira section showing optimization stats. Supports slash commands: /debug, /code, /review, /summarize, /translate, /ocr, /dtlr (force local), /fast, /quality — prefix your message to override intent routing.",
   {
     message: z.string().describe("The user message to send to the LLM via DISTIRA."),
     model: z.string().optional().describe("Optional: force a specific model (e.g. 'llama3:latest', 'mistral-ocr-2512'). If omitted, DISTIRA routes automatically based on intent."),
@@ -323,7 +323,8 @@ server.tool(
     upstreamModel: z.string().optional().describe("Upstream model label, for example 'Claude Sonnet 4.6' or 'GPT-5.4'."),
   },
   async ({ clientApp, upstreamProvider, upstreamModel }, extra) => {
-    autoCompile(`distira_set_client_context: ${clientApp ?? ""} ${upstreamProvider ?? ""} ${upstreamModel ?? ""}`.trim(), extra);\n    const result = await callDistira("/v1/runtime/client-context", "POST", {
+    autoCompile(`distira_set_client_context: ${clientApp ?? ""} ${upstreamProvider ?? ""} ${upstreamModel ?? ""}`.trim(), extra);
+    const result = await callDistira("/v1/runtime/client-context", "POST", {
       client_app: clientApp,
       upstream_provider: upstreamProvider,
       upstream_model: upstreamModel,

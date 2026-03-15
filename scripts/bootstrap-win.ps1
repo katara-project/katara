@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 Write-Host ''
-Write-Host '  DISTIRA - Sovereign AI Context Operating System' -ForegroundColor Cyan
+Write-Host '  DISTIRA - The AI Context Compiler' -ForegroundColor Cyan
 Write-Host '  Bootstrap script for Windows' -ForegroundColor Cyan
 Write-Host '  ----------------------------------------------' -ForegroundColor DarkGray
 Write-Host ''

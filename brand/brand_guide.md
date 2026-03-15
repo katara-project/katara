@@ -2,7 +2,7 @@
 
 ## Core positioning
 **Distira**  
-Sovereign AI Context Operating System
+The AI Context Compiler
 
 ## Visual source
 Derived from the provided Sora-generated logo image and adapted into a reusable brand pack.
