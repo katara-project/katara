@@ -532,7 +532,22 @@ Requesting the LLM to be concise in plain language (no emojis, no markdown decor
 - **Live transitions** — CSS transitions on all savings values and KPI cards for visible reactivity
 - **AuditView cleaned** — removed misplaced KPI bar, unused computed properties and CSS
 
-### V10.9 — RCTIA Prompt Compiler (Planned)
+### V10.9 — Slash Commands & Intent Override
+
+**Status:** Delivered (VERSION 10.9.0).
+
+- **Slash command system** — Prefix any prompt with `/debug`, `/code`, `/review`, `/summarize`, `/translate`, `/ocr`, `/dtlr`, `/fast`, `/quality`, or `/general` to override automatic intent detection with confidence 1.0.
+- **`/dtlr` (Data to Local Routing)** — Forces on-prem routing regardless of intent; sets `force_local: true`.
+- **`/fast`** — Aggressive 80% token reduction, routed to `openrouter-step-3.5-flash-cloud`.
+- **`/quality`** — Preserves 50% of context, routed to `ollama-llama3.3` (high-quality local).
+- **French variants** — `/résumé`, `/traduire`, `/rapide`, `/qualité` (and unaccented equivalents) supported natively.
+- **`TaskRouting`** extended with `fast` and `quality` routing keys.
+- **MCP** — `distira_compile` and `distira_chat` tool descriptions document slash commands.
+- **11 new compiler tests**, 204 total workspace tests, 0 failures.
+- **MCP crash fix** — literal `\n` syntax error on line 326 fixed (Node.js v24).
+- **GitHub Actions** — `actions/checkout@v5`, `node-version: 22`.
+
+### V10.10 — RCTIA Prompt Compiler (Planned)
 
 **Status:** Planned.
 

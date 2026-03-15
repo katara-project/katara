@@ -49,6 +49,8 @@ struct TaskRouting {
     translate: Option<String>,
     general: Option<String>,
     ocr: Option<String>,
+    fast: Option<String>,
+    quality: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -146,6 +148,12 @@ impl RouterConfig {
             }
             if let Some(v) = &tr.ocr {
                 task_map.insert("ocr".into(), v.clone());
+            }
+            if let Some(v) = &tr.fast {
+                task_map.insert("fast".into(), v.clone());
+            }
+            if let Some(v) = &tr.quality {
+                task_map.insert("quality".into(), v.clone());
             }
         }
 

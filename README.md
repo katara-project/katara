@@ -377,7 +377,7 @@ See [INSTALL.md](INSTALL.md#vs-code-agent-mcp) for setup instructions and [TESTI
 
 ## Version
 
-Current runtime version: **10.2.0** — served from [VERSION](VERSION) and exposed live via `GET /version`.
+Current runtime version: **10.9.0** — served from [VERSION](VERSION) and exposed live via `GET /version`.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for planned iterations.
 

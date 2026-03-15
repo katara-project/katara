@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.9.0] — Slash Commands & Intent Override
+
+### Added
+- **Slash commands** — Prefix any prompt with `/debug`, `/code`, `/review`, `/summarize`, `/translate`, `/ocr`, `/dtlr`, `/fast`, `/quality`, or `/general` to override automatic intent detection with confidence 1.0
+- **`/dtlr` (Data to Local Routing)** — Forces on-prem routing regardless of intent; sets `force_local: true` in the compile result
+- **`/fast` intent** — Aggressive 80% token reduction, routed to `openrouter-step-3.5-flash-cloud`
+- **`/quality` intent** — Preserves 50% of context, routed to `ollama-llama3.3` (high-quality local)
+- **French variants** — `/résumé`, `/traduire`, `/rapide`, `/qualité` (and unaccented equivalents) supported natively
+- **`CompileResult` fields** — `slash_command: Option<String>` and `force_local: bool` exposed in compile API response
+- **`TaskRouting`** — `fast` and `quality` routing keys in `routing.yaml`
+- **11 new compiler tests** — slash command override, force-local, context stripping, French variants, backward compatibility
+
+### Changed
+- **Compiler** — `extract_slash_command()` strips the command prefix before context compilation, reducing noise tokens
+- **Core handlers** — compile and chat endpoints honor `force_local` from slash commands
+- **MCP tool descriptions** — `distira_compile` and `distira_chat` now document slash command support
+
+### Fixed
+- **MCP server syntax error** — Literal `\n` (two characters) on line 326 replaced with real newline; fixes crash on Node.js v24
+- **GitHub Actions** — `actions/checkout@v4` → `@v5`, `node-version: 20` → `22` (Node.js 20 deprecation)
+- **Clippy** — `map_or(false, ...)` → `is_some_and(...)` per `unnecessary_map_or` lint
+- **Savings & Impact page static data** — values appeared frozen because per-request savings were too small to notice. Revamped with:
+  - **Last Request Impact** section showing per-request token and cost delta
+  - **Session Projections** — monthly/yearly extrapolations (cost, CO₂, trees) that show meaningful numbers
+  - **Pulse animation** — KPI cards and tiles flash green on every new SSE update
+  - **Savings sparkline** — visual growth line derived from cumulative history
+  - **4 KPI cards** — added Total Requests and Avg Tokens Saved/Request
+  - **Smart formatting** — `formatDynamic()` adapts decimal precision to value magnitude
+
 ## [10.8.0] — Savings KPIs, Simplified Ice Widget & Live Data
 
 ### Added

@@ -721,6 +721,8 @@ fn compile_result_from_cache(entry: &cache::CacheEntry) -> compiler::CompileResu
         optimizer_savings: 0, // not stored in cache; conservative default
         summary: entry.summary.clone(),
         compiled_context: entry.compiled_context.clone(),
+        slash_command: None,
+        force_local: false,
     }
 }
 
@@ -1423,7 +1425,7 @@ async fn compile(
     );
     let route = state.router_config.choose_provider_adaptive(
         &result.intent,
-        sensitive,
+        sensitive || result.force_local,
         &collector.daily_provider_counts,
         &collector.avg_latency_by_provider(),
         &collector.error_rate_by_provider(),
@@ -1482,6 +1484,8 @@ async fn compile(
         "optimizer_savings": result.optimizer_savings,
         "compiled_context": result.compiled_context,
         "summary": result.summary,
+        "slash_command": result.slash_command,
+        "force_local": result.force_local,
         "memory_reused_tokens": mem.reused_tokens,
         "context_reuse_ratio": mem.context_reuse_ratio,
         "provider": route.provider,
@@ -1618,7 +1622,7 @@ async fn chat_completions(
     };
     let route = state.router_config.choose_provider_adaptive(
         &result.intent,
-        sensitive,
+        sensitive || result.force_local,
         &daily_counts,
         &latency_map,
         &error_map,

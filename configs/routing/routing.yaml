@@ -24,6 +24,9 @@ routing:
     general: openrouter-step-3.5-flash-cloud
     # ── OCR → cloud Mistral OCR (best accuracy) ─────────
     ocr: mistral-ocr-2512-cloud
+    # ── Slash command routing ──────────────────────────────────
+    fast: openrouter-step-3.5-flash-cloud
+    quality: ollama-llama3.3
 
   # ── Response optimisation ────────────────────────────────────────────────────
   # When true, DISTIRA injects a conciseness directive into every forwarded

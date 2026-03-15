@@ -14,6 +14,14 @@ pub struct CompileResult {
     pub optimizer_savings: usize,
     pub summary: String,
     pub compiled_context: String,
+    /// V10.9 — Slash command detected from user input (e.g. "/debug", "/dtlr").
+    /// `None` when no slash command was present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slash_command: Option<String>,
+    /// V10.9 — When true, the compiler requests local-only routing
+    /// (equivalent to `sensitive: true`). Set by `/dtlr` slash command.
+    #[serde(default)]
+    pub force_local: bool,
 }
 
 /// Canonicalize raw context before fingerprinting to reduce cache misses caused
@@ -90,17 +98,85 @@ fn is_long_number(token: &str) -> bool {
     t.len() >= 6 && t.chars().all(|c| c.is_ascii_digit())
 }
 
+/// V10.9 — Slash command parsing result.
+struct SlashCommand {
+    /// The canonical intent to use (e.g. "debug", "codegen").
+    intent: String,
+    /// The original command string (e.g. "/debug", "/dtlr").
+    command: String,
+    /// The context with the slash command stripped.
+    stripped: String,
+    /// Whether this command forces local-only routing.
+    force_local: bool,
+}
+
+/// V10.9 — Extract a slash command prefix from user input.
+/// Recognized commands: /debug, /code, /review, /summarize, /translate,
+/// /ocr, /dtlr, /fast, /quality, /general.
+/// Returns `None` if no slash command is found.
+fn extract_slash_command(raw: &str) -> Option<SlashCommand> {
+    let trimmed = raw.trim_start();
+    if !trimmed.starts_with('/') {
+        return None;
+    }
+
+    // Extract the command token (everything up to the first whitespace or end).
+    let cmd_end = trimmed
+        .find(|c: char| c.is_whitespace())
+        .unwrap_or(trimmed.len());
+    let cmd = &trimmed[..cmd_end];
+    let rest = trimmed[cmd_end..].trim_start();
+
+    let (intent, force_local) = match cmd.to_ascii_lowercase().as_str() {
+        "/debug" => ("debug", false),
+        "/code" | "/codegen" => ("codegen", false),
+        "/review" => ("review", false),
+        "/summarize" | "/summary" | "/resume" | "/résumé" => ("summarize", false),
+        "/translate" | "/traduire" => ("translate", false),
+        "/ocr" => ("ocr", false),
+        "/dtlr" | "/local" | "/sovereign" => ("general", true),
+        "/fast" | "/rapide" => ("fast", false),
+        "/quality" | "/qualite" | "/qualité" => ("quality", false),
+        "/general" => ("general", false),
+        _ => return None,
+    };
+
+    Some(SlashCommand {
+        intent: intent.to_string(),
+        command: cmd.to_string(),
+        stripped: if rest.is_empty() {
+            raw.trim_start().to_string()
+        } else {
+            rest.to_string()
+        },
+        force_local,
+    })
+}
+
 /// Compile context with an optional `client_app` hint for smarter intent scoring.
 /// When `client_app` is "VS Code Copilot" (or similar), code-adjacent intents
 /// receive a signal boost so the correct LLM is selected more reliably.
 pub fn compile_context_with_hint(raw: &str, client_app: Option<&str>) -> CompileResult {
+    // V10.9: detect and strip slash commands before compilation.
+    let slash = extract_slash_command(raw);
+    let effective_raw = if let Some(ref sc) = slash {
+        &sc.stripped
+    } else {
+        raw
+    };
+
     // V9.5: encode input for optimal tokenization.
-    let encoded = tokenizer::encode(raw);
+    let encoded = tokenizer::encode(effective_raw);
     let raw_encoded = encoded.as_str();
     let raw_tokens_estimate = token_count(raw_encoded);
 
-    // V10.4: multi-signal scored intent detection.
-    let (intent, intent_confidence) = detect_intent_scored(raw_encoded, client_app);
+    // V10.9: slash command overrides intent detection with confidence 1.0.
+    let (intent, intent_confidence) = if let Some(ref sc) = slash {
+        (sc.intent.clone(), 1.0_f32)
+    } else {
+        // V10.4: multi-signal scored intent detection.
+        detect_intent_scored(raw_encoded, client_app)
+    };
 
     // V9.10.1: BPE optimizer pass — lossless lexical transformations.
     let optimized = optimizer::optimize(raw_encoded, &intent);
@@ -125,6 +201,8 @@ pub fn compile_context_with_hint(raw: &str, client_app: Option<&str>) -> Compile
         optimizer_savings,
         summary: build_summary(&intent, raw_tokens_estimate, compiled_tokens_estimate),
         compiled_context,
+        slash_command: slash.as_ref().map(|sc| sc.command.clone()),
+        force_local: slash.as_ref().is_some_and(|sc| sc.force_local),
     }
 }
 
@@ -142,6 +220,8 @@ fn intent_marker(intent: &str) -> &'static str {
         "codegen" => "[k:codegen]|",
         "translate" => "[k:translate]|",
         "ocr" => "[k:ocr]|",
+        "fast" => "[k:fast]|",
+        "quality" => "[k:quality]|",
         _ => "[k:general]|",
     }
 }
@@ -159,7 +239,9 @@ fn distillation_divisor(intent: &str) -> usize {
         "debug" | "review" => 2,
         "codegen" => 3,
         "summarize" => 5,
-        _ => 4, // general
+        "fast" => 5,    // aggressive reduction for speed
+        "quality" => 2, // preserve more context for quality
+        _ => 4,         // general
     }
 }
 
@@ -173,8 +255,8 @@ fn build_compiled_context(raw: &str, intent: &str, target_tokens: usize) -> Stri
         "review" => reduce_review_context(raw),
         "codegen" => reduce_general_context(raw),
         "translate" => reduce_general_context(raw),
-        "summarize" => reduce_summarize_context(raw),
-        "ocr" => reduce_ocr_context(raw),
+        "summarize" | "fast" => reduce_summarize_context(raw),
+        "ocr" | "quality" => reduce_ocr_context(raw),
         _ => reduce_general_context(raw),
     };
 
@@ -1093,6 +1175,87 @@ mod tests {
         assert_eq!(result.intent, "debug");
         assert!(result.compiled_context.contains("[k:debug]|"));
         assert!(result.compiled_context.contains("panic"));
+    }
+
+    // ── V10.9 — Slash command tests ─────────────────────────────────────
+
+    #[test]
+    fn slash_debug_overrides_intent() {
+        let result = compile_context("/debug explain how closures work");
+        assert_eq!(result.intent, "debug");
+        assert_eq!(result.intent_confidence, 1.0);
+        assert_eq!(result.slash_command.as_deref(), Some("/debug"));
+        assert!(!result.force_local);
+    }
+
+    #[test]
+    fn slash_code_overrides_intent() {
+        let result = compile_context("/code hello world");
+        assert_eq!(result.intent, "codegen");
+        assert_eq!(result.slash_command.as_deref(), Some("/code"));
+    }
+
+    #[test]
+    fn slash_review_overrides_intent() {
+        let result = compile_context("/review check this function");
+        assert_eq!(result.intent, "review");
+        assert_eq!(result.slash_command.as_deref(), Some("/review"));
+    }
+
+    #[test]
+    fn slash_summarize_overrides_intent() {
+        let result = compile_context("/summarize this long document about Rust");
+        assert_eq!(result.intent, "summarize");
+        assert_eq!(result.slash_command.as_deref(), Some("/summarize"));
+    }
+
+    #[test]
+    fn slash_translate_overrides_intent() {
+        let result = compile_context("/translate hello world en français");
+        assert_eq!(result.intent, "translate");
+    }
+
+    #[test]
+    fn slash_ocr_overrides_intent() {
+        let result = compile_context("/ocr extract this image");
+        assert_eq!(result.intent, "ocr");
+    }
+
+    #[test]
+    fn slash_dtlr_forces_local() {
+        let result = compile_context("/dtlr explain sensitive patient data");
+        assert!(result.force_local);
+        assert_eq!(result.slash_command.as_deref(), Some("/dtlr"));
+    }
+
+    #[test]
+    fn slash_fast_routes_to_fast() {
+        let result = compile_context("/fast what is 2+2");
+        assert_eq!(result.intent, "fast");
+        assert_eq!(result.slash_command.as_deref(), Some("/fast"));
+    }
+
+    #[test]
+    fn slash_quality_routes_to_quality() {
+        let result = compile_context("/quality write a thorough analysis");
+        assert_eq!(result.intent, "quality");
+        assert_eq!(result.slash_command.as_deref(), Some("/quality"));
+    }
+
+    #[test]
+    fn no_slash_command_returns_none() {
+        let result = compile_context("hello world");
+        assert_eq!(result.intent, "general");
+        assert!(result.slash_command.is_none());
+        assert!(!result.force_local);
+    }
+
+    #[test]
+    fn slash_command_strips_prefix_from_context() {
+        let result = compile_context("/debug the server is crashing");
+        assert_eq!(result.intent, "debug");
+        // The compiled context should not start with "/debug"
+        assert!(!result.compiled_context.contains("/debug"));
     }
 
     #[test]
