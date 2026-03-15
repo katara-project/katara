@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.8.0] — Savings KPIs, Simplified Ice Widget & Live Data
+
+### Added
+- **KPI cards on Savings page** — "Tokens saved by compilation" and "Requests routed on-prem" moved from Runtime Audit to Savings & Impact where they are contextually relevant
+- **RCTIA prompt structuring** documented in ROADMAP as upcoming feature (Rôle, Contexte, Tâches, Instructions, Amélioration)
+
+### Changed
+- **Ice Preserved tile** — replaced complex SVG iceberg (gradients, filter, polygon computations, bob animation) with clean 🧊 emoji approach, consistent with 🌳 Tree tile
+- **Savings values** — added CSS transitions for live update feel on all savings tiles and KPI cards
+
+### Removed
+- **Audit page KPI cards** — "Tokens saved by compilation" and "Requests forced on-prem" removed from Runtime Audit (misplaced context); now on Savings page
+- **Iceberg SVG** — removed 30+ lines of SVG defs, gradients, filters, and 4 computed properties (`iceOpacity`, `iceScale`, `aboveWaterPoints`, `underwaterPoints`)
+
 ## [10.7.0] — Savings & Impact Page + Dashboard Slimming
 
 ### Added

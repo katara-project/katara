@@ -521,3 +521,20 @@ Requesting the LLM to be concise in plain language (no emojis, no markdown decor
 - **Leaf icon** in sidebar nav, new route between Overview and AI Flow
 - **Overview slimmed** — moved 5 sections (savings tiles, ice cube, codegen vs review, intent distribution, suggestions) to SavingsView
 - **Loading states** for suggestions (spinner, disabled button, loading/empty/populated states) green/amber/grey.
+
+### V10.8 — Savings KPIs, Simplified Ice Widget & Live Data
+
+**Status:** Delivered (VERSION 10.8.0).
+
+- **KPI cards relocated** — "Tokens saved by compilation" and "Requests routed on-prem" moved from Runtime Audit to Savings & Impact page
+- **Ice Preserved simplified** — complex SVG iceberg (gradients, filters, 4 computed polygon properties, bob animation) replaced with clean 🧊 emoji, consistent with 🌳 Tree tile
+- **Live transitions** — CSS transitions on all savings values and KPI cards for visible reactivity
+- **AuditView cleaned** — removed misplaced KPI bar, unused computed properties and CSS
+
+### V10.9 — RCTIA Prompt Compiler (Planned)
+
+**Status:** Planned.
+
+- **RCTIA prompt structuring** — automatic prompt rewriting applying Rôle, Contexte, Tâches, Instructions, Amélioration (RCTIA) rules before LLM submission
+- Goal: reduce token waste and improve prompt quality by enforcing structured thought patterns
+- Scope: compiler crate enhancement + optional dashboard toggle

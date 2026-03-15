@@ -7,6 +7,18 @@
       </div>
     </header>
 
+    <!-- KPI cards -->
+    <div class="savings-kpis">
+      <div class="kpi-card accent">
+        <div class="kpi-value">{{ savingsData.tokensSaved.toLocaleString() }}</div>
+        <div class="kpi-label">Tokens saved by compilation</div>
+      </div>
+      <div class="kpi-card sovereign">
+        <div class="kpi-value">{{ metrics.routesLocal }}</div>
+        <div class="kpi-label">Requests routed on-prem</div>
+      </div>
+    </div>
+
     <!-- Savings bar -->
     <div class="savings-bar-wrap card">
       <div class="savings-bar-header">
@@ -49,37 +61,7 @@
         </div>
         <div class="savings-tile ice-tile">
           <span class="tile-label">Ice Preserved</span>
-          <div class="iceberg-widget">
-            <svg class="iceberg-svg" viewBox="0 0 120 160" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="iceAbove" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="rgba(220,245,255,0.95)" />
-                  <stop offset="100%" stop-color="rgba(160,220,255,0.7)" />
-                </linearGradient>
-                <linearGradient id="iceBelow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="rgba(80,180,240,0.5)" />
-                  <stop offset="100%" stop-color="rgba(30,100,180,0.25)" />
-                </linearGradient>
-                <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="rgba(20,60,120,0.15)" />
-                  <stop offset="100%" stop-color="rgba(10,40,80,0.3)" />
-                </linearGradient>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="3" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-              <rect x="0" y="58" width="120" height="102" fill="url(#waterGrad)" rx="4" />
-              <polygon :points="underwaterPoints" fill="url(#iceBelow)" stroke="rgba(80,180,240,0.3)" stroke-width="0.5" :opacity="iceOpacity" />
-              <polygon :points="aboveWaterPoints" fill="url(#iceAbove)" stroke="rgba(200,235,255,0.6)" stroke-width="0.5" filter="url(#glow)" :opacity="iceOpacity" />
-              <polygon points="55,18 60,8 65,18 62,40 58,40" fill="rgba(255,255,255,0.35)" :opacity="iceOpacity" />
-              <line x1="5" y1="60" x2="115" y2="60" stroke="rgba(100,200,255,0.4)" stroke-width="1" stroke-dasharray="4 3" />
-            </svg>
-          </div>
-          <strong class="savings-value ice-litres">{{ savingsData.litresIceSaved.toFixed(1) }} L</strong>
+          <strong class="savings-value">&#x1F9CA; {{ savingsData.litresIceSaved.toFixed(1) }} L</strong>
           <span class="tile-subtitle">of ice-melt equivalent avoided</span>
         </div>
       </div>
@@ -191,32 +173,6 @@ const savingsPct = computed(() => {
   return Math.min(100, Math.round((savingsData.value.tokensSaved / target) * 100))
 })
 
-const iceOpacity = computed(() => {
-  const litres = savingsData.value.litresIceSaved
-  return Math.min(1, 0.3 + (litres / 50) * 0.7)
-})
-
-const iceScale = computed(() => Math.min(1, 0.5 + (savingsData.value.litresIceSaved / 50) * 0.5))
-
-const aboveWaterPoints = computed(() => {
-  const s = iceScale.value
-  const cx = 60
-  const tipY = 60 - 52 * s
-  const baseY = 60
-  const halfW = 22 * s
-  return `${cx},${tipY} ${cx + halfW},${baseY} ${cx - halfW},${baseY}`
-})
-
-const underwaterPoints = computed(() => {
-  const s = iceScale.value
-  const cx = 60
-  const topY = 62
-  const botY = 62 + 80 * s
-  const halfTopW = 28 * s
-  const halfBotW = 14 * s
-  return `${cx - halfTopW},${topY} ${cx + halfTopW},${topY} ${cx + halfBotW},${botY} ${cx - halfBotW},${botY}`
-})
-
 // Suggestions
 interface Suggestion {
   severity: 'warning' | 'info'
@@ -325,17 +281,20 @@ const intentRows = computed(() => {
 .savings-tile.energy-tile { border-color: rgba(57, 211, 255, 0.22); }
 .savings-tile.tree-tile  { border-color: rgba(76, 175, 80, 0.28); }
 .savings-tile.ice-tile   { border-color: rgba(120, 200, 255, 0.28); }
-.savings-value { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.5px; }
+.savings-value { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.5px; transition: color 0.3s, transform 0.3s; }
 .cost-tile .savings-value  { color: var(--accent, #2cffb3); }
 .energy-tile .savings-value { color: var(--primary, #39d3ff); }
 .tree-tile .savings-value  { color: #66bb6a; }
 .ice-tile .savings-value   { color: #78c8ff; }
-.ice-litres { text-align: center; }
-
-/* Iceberg SVG */
-.iceberg-widget { display: flex; justify-content: center; align-items: center; height: 100px; }
-.iceberg-svg { width: 80px; height: 105px; animation: iceberg-bob 4s ease-in-out infinite; filter: drop-shadow(0 2px 8px rgba(80, 180, 255, 0.3)); }
-@keyframes iceberg-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+/* KPI Cards */
+.savings-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 20px; }
+.kpi-card { background: var(--card-bg, rgba(255,255,255,0.04)); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 18px 20px; }
+.kpi-card.accent { border-color: rgba(57, 211, 255, 0.25); }
+.kpi-card.sovereign { border-color: rgba(44, 255, 179, 0.25); }
+.kpi-value { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; transition: color 0.3s; }
+.kpi-card.accent .kpi-value { color: var(--primary, #39d3ff); }
+.kpi-card.sovereign .kpi-value { color: var(--accent, #2cffb3); }
+.kpi-label { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
 
 /* Codegen vs Review */
 .codegen-vs-review-section { margin-top: 20px; }

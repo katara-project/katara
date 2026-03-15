@@ -9,18 +9,6 @@
       <span v-else class="live-badge offline">○ Offline</span>
     </header>
 
-    <!-- Security KPIs -->
-    <div class="audit-kpis">
-      <div class="kpi-card accent">
-        <div class="kpi-value">{{ totalTokensSaved.toLocaleString() }}</div>
-        <div class="kpi-label">Tokens saved by compilation</div>
-      </div>
-      <div class="kpi-card secure">
-        <div class="kpi-value">{{ sensitiveCount }}</div>
-        <div class="kpi-label">Requests forced on-prem</div>
-      </div>
-    </div>
-
     <section class="card" v-if="auditRows.length">
       <h3>Request History</h3>
       <div class="audit-controls">
@@ -259,12 +247,7 @@ const auditRows = computed(() => {
     })
 })
 
-const totalTokensSaved = computed(() =>
-  filteredHistory.value.reduce((acc, e) => acc + (e.tokens_saved ?? 0), 0)
-)
-const sensitiveCount = computed(() =>
-  filteredHistory.value.filter((e) => e.sensitive).length
-)
+
 function exportScopedCsv() {
   const rows = [...filteredHistory.value].reverse()
   if (!rows.length) return
@@ -418,38 +401,7 @@ function exportScopedCsv() {
   gap: 8px;
 }
 
-/* ── KPI bar ── */
-.audit-kpis {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
-  margin-bottom: 20px;
-}
 
-.kpi-card {
-  background: var(--card-bg, rgba(255,255,255,0.04));
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
-  padding: 18px 20px;
-}
-
-.kpi-card.accent { border-color: rgba(57, 211, 255, 0.25); }
-.kpi-card.secure { border-color: rgba(44, 255, 179, 0.25); }
-
-.kpi-value {
-  font-size: 1.6rem;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-
-.kpi-card.accent .kpi-value { color: var(--primary, #39d3ff); }
-.kpi-card.secure .kpi-value { color: var(--accent, #2cffb3); }
-
-.kpi-label {
-  font-size: 0.78rem;
-  color: var(--muted);
-  margin-top: 4px;
-}
 
 /* ── Tokens column ── */
 .tokens-col {
