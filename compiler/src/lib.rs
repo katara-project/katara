@@ -381,16 +381,48 @@ fn select_efficiency_template(intent: &str, context: &str) -> &'static str {
 
     match intent {
         "debug" => {
-            if contains_any(&lowered, &["stack trace", "stacktrace", "panic", "exception", "traceback", "segfault"]) {
+            if contains_any(
+                &lowered,
+                &[
+                    "stack trace",
+                    "stacktrace",
+                    "panic",
+                    "exception",
+                    "traceback",
+                    "segfault",
+                ],
+            ) {
                 "debug_trace"
-            } else if contains_any(&lowered, &["test failed", "assertion failed", "ci", "pipeline", "flaky", "regression"]) {
+            } else if contains_any(
+                &lowered,
+                &[
+                    "test failed",
+                    "assertion failed",
+                    "ci",
+                    "pipeline",
+                    "flaky",
+                    "regression",
+                ],
+            ) {
                 "debug_test"
             } else {
                 "debug_default"
             }
         }
         "review" => {
-            if contains_any(&lowered, &["security", "sql injection", "xss", "csrf", "ssrf", "auth", "jwt", "secret"]) {
+            if contains_any(
+                &lowered,
+                &[
+                    "security",
+                    "sql injection",
+                    "xss",
+                    "csrf",
+                    "ssrf",
+                    "auth",
+                    "jwt",
+                    "secret",
+                ],
+            ) {
                 "review_security"
             } else {
                 "review_default"
@@ -399,7 +431,10 @@ fn select_efficiency_template(intent: &str, context: &str) -> &'static str {
         "codegen" => {
             if contains_any(&lowered, &["diff", "patch", "apply_patch", "unified diff"]) {
                 "codegen_patch"
-            } else if contains_any(&lowered, &["test", "tests", "unit test", "integration test"]) {
+            } else if contains_any(
+                &lowered,
+                &["test", "tests", "unit test", "integration test"],
+            ) {
                 "codegen_tests"
             } else {
                 "codegen_default"

@@ -1,14 +1,14 @@
 {
   "snapshot": {
-    "ts": 1773623756,
-    "total_requests": 13,
-    "raw_tokens": 308,
-    "compiled_tokens": 273,
-    "memory_reused_tokens": 197,
+    "ts": 1773624094,
+    "total_requests": 14,
+    "raw_tokens": 333,
+    "compiled_tokens": 298,
+    "memory_reused_tokens": 208,
     "efficiency_score": 100.0,
     "local_ratio": 0.0,
     "cache_hits": 0,
-    "cache_misses": 13,
+    "cache_misses": 14,
     "cache_saved_tokens": 0,
     "history_raw": [
       57,
@@ -23,7 +23,8 @@
       238,
       266,
       282,
-      308
+      308,
+      333
     ],
     "history_compiled": [
       22,
@@ -38,7 +39,8 @@
       203,
       231,
       247,
-      273
+      273,
+      298
     ],
     "history_reused": [
       6,
@@ -53,7 +55,8 @@
       154,
       169,
       181,
-      197
+      197,
+      208
     ],
     "history_hour_epochs": [
       1773540000,
@@ -105,7 +108,7 @@
       57,
       0,
       152,
-      99
+      124
     ],
     "history_hour_compiled": [
       0,
@@ -131,7 +134,7 @@
       22,
       0,
       152,
-      99
+      124
     ],
     "history_hour_reused": [
       0,
@@ -157,16 +160,16 @@
       6,
       0,
       132,
-      59
+      70
     ],
     "routes_local": 0,
-    "routes_cloud": 13,
+    "routes_cloud": 14,
     "routes_midtier": 0,
     "intent_stats": {
       "debug": {
-        "requests": 5,
-        "raw_tokens": 113,
-        "compiled_tokens": 113
+        "requests": 6,
+        "raw_tokens": 138,
+        "compiled_tokens": 138
       },
       "summarize": {
         "requests": 1,
@@ -183,13 +186,13 @@
       "stepfun/step-3.5-flash:free@openrouter-step-3.5-flash-cloud": {
         "model": "stepfun/step-3.5-flash:free",
         "provider": "openrouter-step-3.5-flash-cloud",
-        "requests": 13,
-        "raw_tokens": 308,
-        "compiled_tokens": 273,
-        "memory_reused_tokens": 197,
-        "efficiency_score": 41.363636,
+        "requests": 14,
+        "raw_tokens": 333,
+        "compiled_tokens": 298,
+        "memory_reused_tokens": 208,
+        "efficiency_score": 40.51051,
         "sovereign_requests": 0,
-        "non_sovereign_requests": 13,
+        "non_sovereign_requests": 14,
         "sovereign_ratio": 0.0,
         "avg_latency_ms": 0.0,
         "latency_sum_ms": 0.0,
@@ -208,8 +211,8 @@
         "client_app": "VS Code Copilot Chat",
         "upstream_provider": "Anthropic",
         "upstream_model": "Claude Opus 4.6",
-        "requests": 6,
-        "last_seen_ts": 1773623756
+        "requests": 7,
+        "last_seen_ts": 1773624094
       }
     },
     "last_request": {
@@ -223,13 +226,13 @@
       "routed_model": "stepfun/step-3.5-flash:free",
       "intent": "debug",
       "semantic_cache_hit": false,
-      "semantic_fingerprint": "2350661273058402601",
+      "semantic_fingerprint": "8900692212377740919",
       "cache_hit": false,
       "sensitive": false,
-      "ts": 1773623756,
+      "ts": 1773624094,
       "cost_usd": 0.0,
-      "raw_tokens": 26,
-      "compiled_tokens": 26,
+      "raw_tokens": 25,
+      "compiled_tokens": 25,
       "tokens_saved": 0
     },
     "request_history": [
@@ -492,14 +495,34 @@
         "raw_tokens": 26,
         "compiled_tokens": 26,
         "tokens_saved": 0
+      },
+      {
+        "client_app": "VS Code Copilot Chat",
+        "upstream_provider": "Anthropic",
+        "upstream_model": "Claude Opus 4.6",
+        "tenant_id": "default-tenant",
+        "project_id": "distira-platform",
+        "policy_pack": "baseline",
+        "routed_provider": "openrouter-step-3.5-flash-cloud",
+        "routed_model": "stepfun/step-3.5-flash:free",
+        "intent": "debug",
+        "semantic_cache_hit": false,
+        "semantic_fingerprint": "8900692212377740919",
+        "cache_hit": false,
+        "sensitive": false,
+        "ts": 1773624094,
+        "cost_usd": 0.0,
+        "raw_tokens": 25,
+        "compiled_tokens": 25,
+        "tokens_saved": 0
       }
     ],
     "session_cost_usd": 0.0,
     "last_request_cost_usd": 0.0,
     "stable_blocks": 28,
-    "context_reuse_ratio_pct": 63.96104,
+    "context_reuse_ratio_pct": 62.46246,
     "session_budget_usd": 0.0,
-    "rct2i_applied_count": 13
+    "rct2i_applied_count": 14
   },
   "sem_cache_entries": [
     {
@@ -2285,6 +2308,17 @@
       "rct2i_sections": 0
     },
     {
+      "fingerprint": 8900692212377740919,
+      "intent": "debug",
+      "raw_tokens_estimate": 25,
+      "compiled_tokens_estimate": 25,
+      "summary": "Intent: debug. Reduced estimated context from 25 to 25 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
+      "compiled_context": "[k:debug]|[R] debugging assistant [T] Apply rustfmt formatting fixes to compiler/src/lib.rs â¦",
+      "created_at": 1773624094,
+      "rct2i_applied": true,
+      "rct2i_sections": 3
+    },
+    {
       "fingerprint": 16320271377359283698,
       "intent": "debug",
       "raw_tokens_estimate": 34,
@@ -2528,169 +2562,169 @@
   "context_blocks": [
     {
       "id": "15872144963852364387",
-      "stability": 0.39963746,
+      "stability": 0.36766648,
       "content": "[k:general]|[R] general assistant [T] Remove Upstream Client Models section from dashboard. [I] be clear, direct, and actionable",
       "intent": "general"
     },
     {
       "id": "17272648274530692067",
-      "stability": 0.1597101,
+      "stability": 0.14693329,
       "content": "[k:general]|[R] general assistant [T] Add clear current selected upstream model indicator in dashboard so user see live â¦",
       "intent": "general"
     },
     {
       "id": "3143167928440484360",
-      "stability": 0.778688,
+      "stability": 0.716393,
       "content": "[k:general]|[R] general assistant [T] Need to add upstream provider info. [I] Providers page only shows â¦",
       "intent": "general"
     },
     {
       "id": "12911928850344234617",
-      "stability": 0.12436434,
+      "stability": 0.11441519,
       "content": "[k:general]|[R] general assistant [T] User changed VS Code selected model and wants to test whether DISTIRA now â¦",
       "intent": "general"
     },
     {
       "id": "5611873264724649669",
-      "stability": 0.22293644,
+      "stability": 0.20510152,
       "content": "[k:general]|[R] general assistant [C] Current Selected Upstream ModelGemini â¦",
       "intent": "general"
     },
     {
       "id": "11926438720432248677",
-      "stability": 0.2862975,
+      "stability": 0.2633937,
       "content": "[k:general]|[R] general assistant [C] Comment vas-tu ?. [T] Salut ! C'est un â¦",
       "intent": "general"
     },
     {
       "id": "2870527129906015414",
-      "stability": 0.55784667,
+      "stability": 0.51321894,
       "content": "[k:general]|[R] general assistant [T] Expand EfficiencyGauge footer with more information and line breaks. [I] be clear, direct, and actionable",
       "intent": "general"
     },
     {
       "id": "3198142616582835498",
-      "stability": 0.6590816,
+      "stability": 0.6063551,
       "content": "[k:debug]|[R] debugging assistant [T] Add notification bell icon top-right of dashboard with alert dropdown, and fix Score Scale â¦",
       "intent": "debug"
     },
     {
       "id": "2732526724199974596",
-      "stability": 0.51321894,
+      "stability": 0.47216144,
       "content": "[k:general]|[R] general assistant [T] Add explanatory footer text below sub-metric bars in â¦",
       "intent": "general"
     },
     {
       "id": "11209055995975097039",
-      "stability": 0.11441519,
+      "stability": 0.105261974,
       "content": "[k:debug]|[R] debugging assistant [T] Fix upstream provider labels: Claude models should show â¦",
       "intent": "debug"
     },
     {
       "id": "2350661273058402601",
-      "stability": 1.0,
+      "stability": 0.92,
       "content": "[k:debug]|[R] debugging assistant [T] Reorder sidebar nav links and fix pages not using full width â¦",
       "intent": "debug"
     },
     {
       "id": "2452973265800085865",
-      "stability": 0.43438855,
+      "stability": 0.39963746,
       "content": "[k:general]|[R] general assistant [T] Redesign AI Efficiency Score gauge component in dashboard. [I] be clear, direct, and actionable",
       "intent": "general"
     },
     {
       "id": "18347942162965140476",
-      "stability": 0.6063551,
+      "stability": 0.55784667,
       "content": "[k:debug]|[R] debugging assistant [T] Add notification bell with alerts to dashboard header, and fix â¦",
       "intent": "debug"
     },
     {
       "id": "11945681364096406590",
-      "stability": 0.47216144,
+      "stability": 0.43438855,
       "content": "[k:debug]|[R] debugging assistant [T] Fix layout alignment issues in EfficiencyGauge SVG arc component. [I] verify fix correctness, suggest root cause",
       "intent": "debug"
     },
     {
       "id": "15822538939545798368",
-      "stability": 0.31119293,
+      "stability": 0.2862975,
       "content": "[k:general]|[R] general assistant [T] Je viens de changer de LLM dans le chat vscode du â¦",
       "intent": "general"
     },
     {
       "id": "15607809571520863821",
-      "stability": 0.20510152,
+      "stability": 0.1886934,
       "content": "[k:general]|Trigger detection",
       "intent": "general"
     },
     {
       "id": "13607737480653614819",
-      "stability": 0.2633937,
+      "stability": 0.2423222,
       "content": "[k:general]|[R] general assistant [T] Ok fesons un test avec ce LLM. [I] be clear, direct, and actionable",
       "intent": "general"
     },
     {
       "id": "6815483937478120221",
-      "stability": 0.36766648,
+      "stability": 0.33825317,
       "content": "[k:summarize]|[R] summarization assistant [C] Also â¦",
       "intent": "summarize"
     },
     {
       "id": "3411948266188311123",
-      "stability": 0.8464,
+      "stability": 0.778688,
       "content": "[k:general]|[R] general assistant [T] Move notification bell from OverviewView to global App.vue layout, add â¦",
       "intent": "general"
     },
     {
-      "id": "12779297015705435686",
-      "stability": 0.105261974,
-      "content": "[k:debug]|[R] debugging assistant [T] Fix duplicate upstream model entries in dashboard - consolidate by model â¦",
+      "id": "8900692212377740919",
+      "stability": 1.0,
+      "content": "[k:debug]|[R] debugging assistant [T] Apply rustfmt formatting fixes to compiler/src/lib.rs â¦",
       "intent": "debug"
     },
     {
       "id": "12086563124355717481",
-      "stability": 0.2423222,
+      "stability": 0.22293644,
       "content": "[k:general]|[R] general assistant [C] Current Selected Upstream Model â¦",
       "intent": "general"
     },
     {
       "id": "11762490933177861893",
-      "stability": 0.716393,
+      "stability": 0.6590816,
       "content": "[k:general]|[R] general assistant [T] Move notification bell to replace Reset Metrics â¦",
       "intent": "general"
     },
     {
       "id": "3383161080256912369",
-      "stability": 0.17359793,
+      "stability": 0.1597101,
       "content": "[k:general]|[R] general assistant [T] TrÃÂ¨s bien maintenant, faisons un autre test avec ce langage que je â¦",
       "intent": "general"
     },
     {
       "id": "2424291335402499912",
-      "stability": 0.1886934,
+      "stability": 0.17359793,
       "content": "[k:general]|[R] general assistant [T] Test message to trigger context detection. [I] be clear, direct, and actionable",
       "intent": "general"
     },
     {
       "id": "3630815506095193084",
-      "stability": 0.14693329,
+      "stability": 0.13517863,
       "content": "[k:general]|[R] general assistant [C] Investigate â¦",
       "intent": "general"
     },
     {
       "id": "7314297159490513633",
-      "stability": 0.33825317,
+      "stability": 0.31119293,
       "content": "[k:general]|[R] general assistant [T] Voyons maintenant si avec ton automatisation si je demande quel est â¦",
       "intent": "general"
     },
     {
       "id": "288856426505634191",
-      "stability": 0.13517863,
+      "stability": 0.12436434,
       "content": "[k:general]|[R] general assistant [T] Validation test: detect currently selected VS Code upstream model â¦",
       "intent": "general"
     },
     {
       "id": "16343027818074973879",
-      "stability": 0.92,
+      "stability": 0.8464,
       "content": "[k:debug]|[R] debugging assistant [T] Fix notification and help dropdown windows not â¦",
       "intent": "debug"
     }
@@ -2707,14 +2741,14 @@
       132
     ],
     "1773622800": [
-      99,
-      99,
-      59
+      124,
+      124,
+      70
     ]
   },
   "provider_total": {
     "ollama-qwen2.5-coder": 1,
-    "openrouter-step-3.5-flash-cloud": 63,
+    "openrouter-step-3.5-flash-cloud": 64,
     "ollama-mistral-7b-instruct": 5
   },
   "provider_errors": {},
