@@ -1188,6 +1188,15 @@
       "rct2i_sections": 0
     },
     {
+      "fingerprint": 13812328172281204237,
+      "intent": "debug",
+      "raw_tokens_estimate": 18,
+      "compiled_tokens_estimate": 18,
+      "summary": "Intent: debug. Reduced estimated context from 18 to 18 tokens and trimmed repeated trace noise and preserved failure-focused lines.",
+      "compiled_context": "[k:debug]|[R] debugging assistant [T] Run markdownlint strict on all .md files in the â¦",
+      "created_at": 1773602750
+    },
+    {
       "fingerprint": 9271702967383698034,
       "intent": "debug",
       "raw_tokens_estimate": 8,
