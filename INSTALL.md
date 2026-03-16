@@ -662,11 +662,23 @@ The MCP server automatically forwards upstream client metadata to DISTIRA so the
 - the assistant or client model selected by the user
 - the model actually routed by DISTIRA
 
-Default behavior:
+**Automatic detection (V10.18.0+, zero configuration):**
+
+DISTIRA reads the selected model directly from VS Code's SQLite state database (`state.vscdb`, key `chat.currentLanguageModel.panel`). When you switch models in the VS Code model picker, the next `@distira` call detects it automatically.
 
 - `client_app` → `VS Code Copilot Chat`
-- `upstream_model` → the `model` argument passed to `distira_chat`, MCP request `_meta`, or a runtime resolver command
-- `upstream_provider` → MCP request `_meta`, runtime resolver command, or inferred from the model family when possible
+- `upstream_model` → detected from VS Code state with this precedence: explicit tool args (`upstreamModel`, `model`) → MCP request `_meta` → **VS Code `state.vscdb` live read** → runtime resolver command → persisted runtime context → env fallback
+- `upstream_provider` → inferred from the detected model family (Anthropic, OpenAI-family, Google, Mistral, etc.)
+
+`state.vscdb` path is resolved automatically per OS:
+
+- Windows: `%APPDATA%\Code\User\globalStorage\state.vscdb`
+- macOS: `~/Library/Application Support/Code/User/globalStorage/state.vscdb`
+- Linux: `~/.config/Code/User/globalStorage/state.vscdb`
+
+Results are cached for 3 seconds to minimize SQLite reads.
+
+DISTIRA now also auto-syncs `/v1/runtime/client-context` whenever fresher upstream metadata is detected, so Overview and Runtime Audit stay aligned without manual `set_client_context` calls.
 
 Optional environment overrides:
 
@@ -707,6 +719,8 @@ If the client does not expose it directly, you can still update the live runtime
 ```
 
 DISTIRA also exposes `GET/POST /v1/runtime/client-context` for programmatic updates.
+
+For low-level debugging, the MCP bridge now writes a best-effort probe file to `cache/mcp-meta-probe.json` containing the latest model/provider/client candidates observed in incoming MCP metadata. After one real `@distira` request, inspect this file to verify whether VS Code or Copilot exposed the selected upstream model at all.
 
 ### Validate the MCP integration
 

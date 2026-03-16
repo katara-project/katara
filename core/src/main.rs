@@ -394,7 +394,8 @@ impl MetricsCollector {
             s.routes_cloud += 1;
         }
 
-        let avoided = s.raw_tokens.saturating_sub(s.compiled_tokens);
+        // V10.19: Include memory_reused_tokens in cumulative efficiency (was missing)
+        let avoided = s.raw_tokens.saturating_sub(s.compiled_tokens) + s.memory_reused_tokens;
         s.efficiency_score = if s.raw_tokens == 0 {
             0.0
         } else {
@@ -750,7 +751,11 @@ fn compile_result_from_cache(entry: &cache::CacheEntry) -> compiler::CompileResu
         compiled_context: entry.compiled_context.clone(),
         slash_command: None,
         force_local: false,
-        efficiency_directive: compiler::efficiency_directive(&entry.intent).to_string(),
+        efficiency_directive: compiler::efficiency_directive_for_context(
+            &entry.intent,
+            &entry.compiled_context,
+        )
+        .to_string(),
         rct2i_applied: entry.rct2i_applied,
         rct2i_sections: entry.rct2i_sections,
     }

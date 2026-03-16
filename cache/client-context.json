@@ -1,8 +1,8 @@
 {
-  "client_app": null,
-  "upstream_provider": "GitHub Copilot",
+  "client_app": "VS Code Copilot Chat",
+  "upstream_provider": "Anthropic",
   "upstream_model": "Claude Opus 4.6",
   "tenant_id": null,
   "project_id": null,
-  "updated_at": 1773531649
+  "updated_at": 1773622514
 }

@@ -5,9 +5,6 @@
         <h2>Overview</h2>
         <p class="muted">A visual control plane for AI traffic and context optimization.</p>
       </div>
-      <button class="reset-btn" :disabled="resetting" @click="resetMetrics">
-        {{ resetting ? 'Resetting…' : 'Reset metrics' }}
-      </button>
     </header>
     <div v-if="metrics.alerts && metrics.alerts.length" class="alert-banner">
       <div
@@ -52,7 +49,7 @@
       </div>
     </div>
     <div class="two-col">
-      <EfficiencyGauge :score="metrics.efficiencyScore" />
+      <EfficiencyGauge :score="metrics.efficiencyScore" :totalRequests="metrics.totalRequests" />
       <FlowVisualizer />
     </div>
 
@@ -90,6 +87,24 @@
         <div>
           <h3>Model Scope Clarity</h3>
           <p class="muted">This dashboard tracks the model routed by Distira after compilation and policy routing. It does not assume that the end-user assistant or client is the same model.</p>
+        </div>
+      </div>
+      <div class="current-upstream-card" :class="{ stale: !currentUpstreamCard.isLive }">
+        <div style="flex: 1;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span class="tile-label" style="margin: 0;">Current Selected Upstream Model :</span>
+            <span style="font-size: 1rem;">
+              <strong>{{ currentUpstreamCard.model }}</strong>
+              <span v-if="currentUpstreamCard.provider" class="muted"> · {{ currentUpstreamCard.provider }}</span>
+              <span v-if="currentUpstreamCard.clientApp" class="muted"> · {{ currentUpstreamCard.clientApp }}</span>
+            </span>
+          </div>
+        </div>
+        <div class="current-upstream-meta">
+          <span class="status-pill" :class="currentUpstreamCard.isLive ? 'ok' : 'neutral'">
+            {{ currentUpstreamCard.isLive ? 'Live detection' : 'Last known' }}
+          </span>
+          <span class="tile-subtitle">Seen: {{ currentUpstreamCard.seenAt }}</span>
         </div>
       </div>
       <div class="scope-clarity-grid">
@@ -212,40 +227,6 @@ why + fix</pre>
       </div>
     </section>
 
-    <section class="card upstream-models-section">
-      <div class="section-heading">
-        <div>
-          <h3>Upstream Client Models</h3>
-          <p class="muted">What the calling client reports upstream, such as GPT-5.4 in VS Code Copilot. This is separate from Distira's routed target.</p>
-        </div>
-      </div>
-      <div class="model-table-wrap">
-        <table class="model-table">
-          <thead>
-            <tr>
-              <th>Upstream Model</th>
-              <th>Provider</th>
-              <th>Client App</th>
-              <th>Requests</th>
-              <th>Last Seen</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="entry in upstreamTableRows" :key="entry.key">
-              <td>{{ entry.model }}</td>
-              <td>{{ entry.provider }}</td>
-              <td>{{ entry.clientApp }}</td>
-              <td>{{ entry.requests }}</td>
-              <td>{{ entry.lastSeen }}</td>
-            </tr>
-            <tr v-if="!upstreamTableRows.length">
-              <td colspan="5" class="muted">No upstream client model reported yet. Distira can only show GPT-5.4 here if VS Code/Copilot exposes it or if runtime client context is updated live.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
     <section class="card model-efficiency-section">
       <h3>Live AI Efficiency by Routed Model</h3>
       <p class="muted">Per-routed-model efficiency score with Sovereign Routing visibility. This table shows what Distira actually sent downstream, not the model selected in the upstream client UI.</p>
@@ -300,7 +281,7 @@ why + fix</pre>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useMetricsStore } from '../store/metrics'
 import { classifyRoute, friendlyProvider, qualityTier } from '../utils/providers'
 import MetricCard from '../components/MetricCard.vue'
@@ -311,14 +292,23 @@ import TvChart from '../components/TvChart.vue'
 
 const metrics = useMetricsStore()
 
-const resetting = ref(false)
-async function resetMetrics() {
-  if (resetting.value) return
-  resetting.value = true
+interface RuntimeClientContext {
+  client_app?: string
+  upstream_provider?: string
+  upstream_model?: string
+  updated_at?: number
+}
+
+const runtimeClientContext = ref<RuntimeClientContext | null>(null)
+let runtimeContextPollHandle: number | null = null
+
+async function fetchRuntimeClientContext() {
   try {
-    await fetch('/v1/metrics/reset', { method: 'DELETE' })
-  } finally {
-    resetting.value = false
+    const response = await fetch('/v1/runtime/client-context')
+    if (!response.ok) return
+    runtimeClientContext.value = await response.json()
+  } catch {
+    // Keep the last good runtime context if the backend is briefly unavailable.
   }
 }
 
@@ -448,19 +438,44 @@ const liveSeries = computed(() => {
   ]
 })
 
-const TEST_PATTERNS = /^(t|test|unknown-model)$/i
+const TEST_PATTERNS = /^(t|test|unknown-model|unknown-provider|unknown-client)$/i
+
+/** Infer the real model provider from the model name. */
+function normalizeProvider(model: string): string | undefined {
+  const m = model.toLowerCase()
+  if (m.includes('claude')) return 'Anthropic'
+  if (m.includes('gpt') || m.includes('codex') || m.includes('o1') || m.includes('o3') || m.includes('o4')) return 'OpenAI'
+  if (m.includes('gemini')) return 'Google'
+  if (m.includes('mistral')) return 'Mistral'
+  if (m.includes('llama') || m.includes('qwen') || m.includes('deepseek')) return 'Open-source / local'
+  return undefined
+}
 
 const upstreamRows = computed(() => {
-  return Object.entries(metrics.upstreamStats)
-    .map(([key, stat]) => ({
-      key,
-      model: stat.upstream_model,
-      provider: stat.upstream_provider,
-      clientApp: stat.client_app,
-      requests: stat.requests,
-      lastSeenTs: stat.last_seen_ts,
-    }))
-    .filter((r) => !TEST_PATTERNS.test(r.model) && !TEST_PATTERNS.test(r.provider))
+  // Aggregate by model name: sum requests, keep latest client/timestamp, normalize provider.
+  const byModel = new Map<string, { model: string; provider: string; clientApp: string; requests: number; lastSeenTs: number }>()
+  for (const stat of Object.values(metrics.upstreamStats)) {
+    if (TEST_PATTERNS.test(stat.upstream_model) || TEST_PATTERNS.test(stat.upstream_provider)) continue
+    const key = stat.upstream_model
+    const existing = byModel.get(key)
+    if (!existing) {
+      byModel.set(key, {
+        model: stat.upstream_model,
+        provider: normalizeProvider(stat.upstream_model) ?? stat.upstream_provider,
+        clientApp: stat.client_app,
+        requests: stat.requests,
+        lastSeenTs: stat.last_seen_ts,
+      })
+    } else {
+      existing.requests += stat.requests
+      if (stat.last_seen_ts > existing.lastSeenTs) {
+        existing.lastSeenTs = stat.last_seen_ts
+        existing.clientApp = stat.client_app
+      }
+    }
+  }
+  return [...byModel.values()]
+    .map((entry) => ({ ...entry, key: entry.model }))
     .sort((a, b) => b.requests - a.requests || b.lastSeenTs - a.lastSeenTs)
 })
 
@@ -523,6 +538,18 @@ const leadModel = computed(() => {
 })
 
 const leadUpstream = computed(() => {
+  const runtimeContext = runtimeClientContext.value
+  if (runtimeContext?.upstream_model) {
+    return {
+      key: 'upstream-runtime',
+      model: runtimeContext.upstream_model,
+      provider: (normalizeProvider(runtimeContext.upstream_model) ?? runtimeContext.upstream_provider) || 'Not supplied by client',
+      clientApp: runtimeContext.client_app || 'Unknown client app',
+      requests: 0,
+      lastSeenTs: runtimeContext.updated_at || 0,
+    }
+  }
+
   const first = upstreamRows.value[0]
   if (first) return first
 
@@ -533,6 +560,27 @@ const leadUpstream = computed(() => {
     clientApp: metrics.lastRequest?.client_app || 'Unknown client app',
     requests: 0,
     lastSeenTs: 0,
+  }
+})
+
+const currentUpstreamCard = computed(() => {
+  const runtimeContext = runtimeClientContext.value
+  if (!runtimeContext?.upstream_model) {
+    return {
+      model: 'Waiting for live upstream context',
+      provider: 'Pending runtime detection',
+      clientApp: 'VS Code Copilot Chat',
+      seenAt: 'Not synced yet',
+      isLive: false,
+    }
+  }
+
+  return {
+    model: runtimeContext.upstream_model,
+    provider: (normalizeProvider(runtimeContext.upstream_model) ?? runtimeContext.upstream_provider) || 'Not supplied by client',
+    clientApp: runtimeContext.client_app || 'Unknown client app',
+    seenAt: runtimeContext.updated_at ? new Date(runtimeContext.updated_at * 1000).toLocaleTimeString() : 'n/a',
+    isLive: true,
   }
 })
 
@@ -594,28 +642,23 @@ const lastRequestCard = computed(() => {
     seenAt: new Date(lastRequest.ts * 1000).toLocaleTimeString(),
   }
 })
+
+onMounted(() => {
+  void fetchRuntimeClientContext()
+  runtimeContextPollHandle = window.setInterval(() => {
+    void fetchRuntimeClientContext()
+  }, 5_000)
+})
+
+onUnmounted(() => {
+  if (runtimeContextPollHandle !== null) {
+    window.clearInterval(runtimeContextPollHandle)
+    runtimeContextPollHandle = null
+  }
+})
 </script>
 
 <style scoped>
-.reset-btn {
-  align-self: flex-start;
-  padding: 6px 16px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 80, 80, 0.12);
-  color: #ff6b6b;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
-}
-.reset-btn:hover:not(:disabled) {
-  background: rgba(255, 80, 80, 0.22);
-}
-.reset-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .alert-banner {
   margin-bottom: 12px;
   display: flex;
@@ -644,6 +687,30 @@ const lastRequestCard = computed(() => {
 .alert-icon {
   font-size: 1rem;
   flex-shrink: 0;
+}
+
+.current-upstream-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(102, 217, 192, 0.28);
+  background: linear-gradient(135deg, rgba(102, 217, 192, 0.14), rgba(74, 144, 226, 0.10));
+}
+
+.current-upstream-card.stale {
+  border-color: rgba(255, 169, 64, 0.28);
+  background: linear-gradient(135deg, rgba(255, 169, 64, 0.10), rgba(255, 255, 255, 0.04));
+}
+
+.current-upstream-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .charts-row {

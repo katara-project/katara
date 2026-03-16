@@ -203,7 +203,7 @@ curl -X POST http://localhost:8080/v1/compile \
 | `summary` | string | Human-readable summary of the compilation |
 | `slash_command` | string \| null | Detected slash command (e.g. `"/debug"`) or null |
 | `force_local` | boolean | `true` if routing is forced to local providers |
-| `efficiency_directive` | string | Auto-injected LLM instruction tailored to the detected intent (reduces output tokens) |
+| `efficiency_directive` | string | Auto-injected LLM instruction selected transparently by DISTIRA from intent + prompt signals (reduces output tokens) |
 | `RCT2I_applied` | boolean | `true` if the prompt was restructured using RCT2I (Role/Context/Task/Intent/Audience) sections |
 | `RCT2I_sections` | integer | Number of RCT2I sections found in the restructured prompt (0–5) |
 | `memory_reused_tokens` | integer | Tokens reused from session memory (prior stable context blocks) |

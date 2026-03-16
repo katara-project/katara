@@ -16,6 +16,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import { homedir, platform } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
@@ -24,10 +26,62 @@ const DISTIRA_URL = process.env.DISTIRA_URL || "http://127.0.0.1:8080";
 const DEFAULT_CLIENT_APP = process.env.DISTIRA_CLIENT_APP || "VS Code Copilot Chat";
 const DEFAULT_UPSTREAM_PROVIDER = process.env.DISTIRA_UPSTREAM_PROVIDER;
 const DEFAULT_UPSTREAM_MODEL = process.env.DISTIRA_UPSTREAM_MODEL;
+const DEFAULT_COPILOT_UPSTREAM_MODEL = process.env.DISTIRA_DEFAULT_COPILOT_MODEL || "GPT-5.3-Codex";
 const CLIENT_CONTEXT_CMD = process.env.DISTIRA_CLIENT_CONTEXT_CMD;
 const CLIENT_APP_CMD = process.env.DISTIRA_CLIENT_APP_CMD;
 const UPSTREAM_PROVIDER_CMD = process.env.DISTIRA_UPSTREAM_PROVIDER_CMD;
 const UPSTREAM_MODEL_CMD = process.env.DISTIRA_UPSTREAM_MODEL_CMD;
+
+const MODEL_KEY_HINTS = [
+  "model",
+  "modelid",
+  "model_id",
+  "modelname",
+  "selectedmodel",
+  "selected_model",
+  "selectedchatmodel",
+  "selected_chat_model",
+  "chatmodel",
+  "chat_model",
+  "copilotmodel",
+  "copilot_model",
+  "languagemodel",
+  "language_model",
+  "enginemodel",
+  "engine_model",
+  "foundationmodel",
+  "foundation_model",
+  "defaultmodel",
+  "active_model",
+  "activemodel",
+  "sessionmodel",
+  "session_model",
+  "modelslug",
+  "model_slug",
+].map((value) => value.toLowerCase());
+
+const PROVIDER_KEY_HINTS = [
+  "provider",
+  "providerid",
+  "provider_id",
+  "providername",
+  "copilotprovider",
+  "copilot_provider",
+  "vendor",
+  "source",
+  "foundationprovider",
+  "foundation_provider",
+].map((value) => value.toLowerCase());
+
+const CLIENT_KEY_HINTS = [
+  "client",
+  "clientapp",
+  "client_app",
+  "application",
+  "app",
+  "caller",
+  "origin",
+].map((value) => value.toLowerCase());
 
 function readDistiraVersion() {
   try {
@@ -89,6 +143,11 @@ function normalizeKeyPath(keyPath) {
   return keyPath.join(".").toLowerCase();
 }
 
+function keyPathContainsHint(keyPath, hints) {
+  const normalizedPath = normalizeKeyPath(keyPath);
+  return hints.some((hint) => normalizedPath.includes(hint));
+}
+
 function findFirstString(value, predicate, keyPath = []) {
   if (typeof value === "string") {
     return predicate(value, keyPath) ? value : undefined;
@@ -114,7 +173,7 @@ function findFirstString(value, predicate, keyPath = []) {
 
 function looksLikeModelName(value) {
   const normalized = value.toLowerCase();
-  return ["gpt", "claude", "sonnet", "opus", "gemini", "mistral", "llama", "qwen", "deepseek", "o1", "o3", "o4"].some((token) => normalized.includes(token));
+  return ["gpt", "claude", "sonnet", "opus", "gemini", "mistral", "llama", "qwen", "deepseek", "o1", "o3", "o4", "codex"].some((token) => normalized.includes(token));
 }
 
 function looksLikeProviderName(value) {
@@ -122,46 +181,102 @@ function looksLikeProviderName(value) {
   return ["openai", "github", "copilot", "anthropic", "google", "mistral", "ollama"].some((token) => normalized.includes(token));
 }
 
+function looksLikeClientApp(value) {
+  const normalized = value.toLowerCase();
+  return ["copilot", "vscode", "vs code", "visual studio code", "chat"].some((token) => normalized.includes(token));
+}
+
+function collectStringCandidates(value, keyPath = [], out = []) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed && trimmed.length <= 200) {
+      out.push({
+        path: keyPath.join("."),
+        keyPath: [...keyPath],
+        value: trimmed,
+      });
+    }
+    return out;
+  }
+
+  if (Array.isArray(value)) {
+    for (const [index, item] of value.entries()) {
+      collectStringCandidates(item, [...keyPath, String(index)], out);
+    }
+    return out;
+  }
+
+  if (value && typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) {
+      collectStringCandidates(item, [...keyPath, key], out);
+    }
+  }
+
+  return out;
+}
+
+function scoreCandidate(kind, candidate) {
+  const value = candidate.value;
+  const keyPath = candidate.keyPath;
+  const normalizedValue = value.toLowerCase();
+  let score = 0;
+
+  if (kind === "model") {
+    if (keyPathContainsHint(keyPath, MODEL_KEY_HINTS)) score += 6;
+    if (looksLikeModelName(value)) score += 5;
+    if (["selected", "active", "current", "default", "session", "chat", "copilot"].some((token) => normalizedValue.includes(token))) score += 1;
+  } else if (kind === "provider") {
+    if (keyPathContainsHint(keyPath, PROVIDER_KEY_HINTS)) score += 6;
+    if (looksLikeProviderName(value)) score += 5;
+  } else if (kind === "clientApp") {
+    if (keyPathContainsHint(keyPath, CLIENT_KEY_HINTS)) score += 4;
+    if (looksLikeClientApp(value)) score += 5;
+  }
+
+  return score;
+}
+
+function findBestCandidate(extra, kind) {
+  const scored = collectStringCandidates(extra)
+    .map((candidate) => ({
+      ...candidate,
+      score: scoreCandidate(kind, candidate),
+    }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((a, b) => b.score - a.score || a.path.length - b.path.length);
+
+  return {
+    best: scored[0],
+    top: scored.slice(0, 8).map(({ path, value, score }) => ({ path, value, score })),
+  };
+}
+
+function metaProbePath() {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  return path.join(__dirname, "..", "cache", "mcp-meta-probe.json");
+}
+
+function writeMetaProbe(extra, candidates, requestMeta) {
+  try {
+    const outputPath = metaProbePath();
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    const body = {
+      captured_at: new Date().toISOString(),
+      meta_keys: Object.keys(extra?._meta || {}),
+      request_meta: requestMeta,
+      candidates,
+    };
+    fs.writeFileSync(outputPath, JSON.stringify(body, null, 2), "utf8");
+  } catch {
+    // best-effort probe only
+  }
+}
+
 function readGenericMeta(extra) {
-  const keyHintsForModel = [
-    "model",
-    "modelid",
-    "model_id",
-    "modelname",
-    "selectedmodel",
-    "selected_model",
-    "chatmodel",
-    "chat_model",
-    "copilotmodel",
-    "copilot_model",
-    "languageModel",
-    "language_model",
-  ].map((value) => value.toLowerCase());
-  const keyHintsForProvider = [
-    "provider",
-    "providerid",
-    "provider_id",
-    "providername",
-    "copilotprovider",
-    "copilot_provider",
-    "vendor",
-    "source",
-  ].map((value) => value.toLowerCase());
-
-  const genericModel = findFirstString(extra, (candidate, keyPath) => {
-    const normalizedPath = normalizeKeyPath(keyPath);
-    return keyHintsForModel.some((hint) => normalizedPath.includes(hint.toLowerCase())) && looksLikeModelName(candidate);
-  });
-
-  const genericProvider = findFirstString(extra, (candidate, keyPath) => {
-    const normalizedPath = normalizeKeyPath(keyPath);
-    return keyHintsForProvider.some((hint) => normalizedPath.includes(hint.toLowerCase())) && looksLikeProviderName(candidate);
-  });
-
-  const genericClientApp = findFirstString(extra, (candidate, keyPath) => {
-    const normalizedPath = normalizeKeyPath(keyPath);
-    return normalizedPath.includes("client") || normalizedPath.includes("application") || normalizedPath.includes("app");
-  });
+  const genericModel = findBestCandidate(extra, "model").best?.value;
+  const genericProvider = findBestCandidate(extra, "provider").best?.value;
+  const genericClientApp = findBestCandidate(extra, "clientApp").best?.value;
 
   return {
     clientApp: genericClientApp,
@@ -193,23 +308,160 @@ function inferUpstreamProvider(model) {
   const normalized = (model || "").toLowerCase();
   if (!normalized) return DEFAULT_UPSTREAM_PROVIDER;
   if (normalized.includes("claude")) return "Anthropic";
-  if (normalized.includes("gpt") || normalized.includes("o1") || normalized.includes("o3")) return "OpenAI-family";
+  if (normalized.includes("gpt") || normalized.includes("o1") || normalized.includes("o3") || normalized.includes("o4") || normalized.includes("codex")) return "OpenAI";
   if (normalized.includes("gemini")) return "Google";
   if (normalized.includes("mistral")) return "Mistral";
   if (normalized.includes("llama") || normalized.includes("qwen") || normalized.includes("deepseek")) return "Open-source / local";
   return DEFAULT_UPSTREAM_PROVIDER;
 }
 
+function nonEmpty(value) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function isCopilotClient(clientApp) {
+  const normalized = (clientApp || "").toLowerCase();
+  return normalized.includes("copilot");
+}
+
+// ── VS Code state.vscdb live model detection ───────────────
+
+function resolveVSCodeStateDbPath() {
+  const os = platform();
+  if (os === "win32")
+    return path.join(process.env.APPDATA || path.join(homedir(), "AppData", "Roaming"), "Code", "User", "globalStorage", "state.vscdb");
+  if (os === "darwin")
+    return path.join(homedir(), "Library", "Application Support", "Code", "User", "globalStorage", "state.vscdb");
+  return path.join(homedir(), ".config", "Code", "User", "globalStorage", "state.vscdb");
+}
+
+const VSCODE_STATE_DB_PATH = resolveVSCodeStateDbPath();
+
+/** Cache: { value, readAt } — refreshed at most every 3 seconds. */
+let _vscodeLmCache = { value: null, readAt: 0 };
+const VSCODE_LM_CACHE_TTL_MS = 3_000;
+
+/**
+ * Read the currently selected chat model from VS Code's state.vscdb.
+ * Returns e.g. "copilot/claude-opus-4.6" or undefined.
+ */
+function readVSCodeCurrentModel() {
+  const now = Date.now();
+  if (_vscodeLmCache.value !== null && now - _vscodeLmCache.readAt < VSCODE_LM_CACHE_TTL_MS) {
+    return _vscodeLmCache.value || undefined;
+  }
+  try {
+    if (!fs.existsSync(VSCODE_STATE_DB_PATH)) return undefined;
+    const db = new DatabaseSync(VSCODE_STATE_DB_PATH, { readOnly: true });
+    try {
+      const row = db.prepare("SELECT value FROM ItemTable WHERE key = ?").get("chat.currentLanguageModel.panel");
+      const raw = row?.value ?? "";
+      _vscodeLmCache = { value: raw, readAt: now };
+      return raw || undefined;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Parse a VS Code model identifier into a human-readable model name and provider.
+ * e.g. "copilot/claude-opus-4.6" → { model: "Claude Opus 4.6", provider: "Anthropic" }
+ *      "ollama/Ollama/qwen2.5-coder:7b" → { model: "qwen2.5-coder:7b", provider: "Open-source / local" }
+ */
+function parseVSCodeModelId(raw) {
+  if (!raw) return {};
+  const parts = raw.split("/");
+  const slug = parts[parts.length - 1];
+  // "auto" means the user hasn't picked a specific model — treat as unknown.
+  if (slug === "auto") return {};
+  // Humanize: replace hyphens with spaces, title-case, fix known acronyms.
+  const humanized = slug
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\bGpt\b/g, "GPT");
+  return {
+    model: humanized,
+    provider: inferUpstreamProvider(slug),
+  };
+}
+
+function maybeSyncRuntimeClientContext(metadata, backendContext) {
+  const changedClient = metadata.client_app && metadata.client_app !== backendContext.clientApp;
+  const changedProvider = metadata.upstream_provider && metadata.upstream_provider !== backendContext.upstreamProvider;
+  const changedModel = metadata.upstream_model && metadata.upstream_model !== backendContext.upstreamModel;
+
+  if (!changedClient && !changedProvider && !changedModel) return;
+
+  callDistira("/v1/runtime/client-context", "POST", {
+    client_app: metadata.client_app,
+    upstream_provider: metadata.upstream_provider,
+    upstream_model: metadata.upstream_model,
+  }).catch(() => {
+    // best-effort sync only; never block the main tool request
+  });
+}
+
 async function buildUpstreamMetadata({ clientApp, upstreamProvider, upstreamModel, model }, extra) {
   const requestMeta = readRequestMeta(extra);
+  const candidateProbe = {
+    model: findBestCandidate(extra, "model").top,
+    provider: findBestCandidate(extra, "provider").top,
+    clientApp: findBestCandidate(extra, "clientApp").top,
+  };
+  writeMetaProbe(extra, candidateProbe, requestMeta);
   const backendContext = await readBackendContext();
   const dynamicContext = readDynamicContext();
-  const resolvedModel = upstreamModel || requestMeta.upstreamModel || backendContext.upstreamModel || dynamicContext.upstreamModel || DEFAULT_UPSTREAM_MODEL;
-  return {
-    client_app: clientApp || requestMeta.clientApp || backendContext.clientApp || dynamicContext.clientApp || DEFAULT_CLIENT_APP,
-    upstream_provider: upstreamProvider || requestMeta.upstreamProvider || backendContext.upstreamProvider || dynamicContext.upstreamProvider || inferUpstreamProvider(resolvedModel),
+
+  const resolvedClientApp =
+    nonEmpty(clientApp) ||
+    nonEmpty(requestMeta.clientApp) ||
+    nonEmpty(dynamicContext.clientApp) ||
+    nonEmpty(backendContext.clientApp) ||
+    DEFAULT_CLIENT_APP;
+
+  // ── VS Code live model detection (reads state.vscdb) ──
+  const vscodeLiveId = readVSCodeCurrentModel();
+  const vscodeParsed = parseVSCodeModelId(vscodeLiveId);
+
+  // Precedence: explicit params > request metadata > VS Code live state > dynamic command > backend context > defaults.
+  // `model` (distira_chat arg) is treated as an explicit upstream model hint.
+  const resolvedModel =
+    nonEmpty(upstreamModel) ||
+    nonEmpty(model) ||
+    nonEmpty(requestMeta.upstreamModel) ||
+    nonEmpty(vscodeParsed.model) ||
+    nonEmpty(dynamicContext.upstreamModel) ||
+    nonEmpty(backendContext.upstreamModel) ||
+    nonEmpty(DEFAULT_UPSTREAM_MODEL);
+
+  const inferredProvider = inferUpstreamProvider(resolvedModel);
+  const resolvedProvider =
+    nonEmpty(upstreamProvider) ||
+    nonEmpty(requestMeta.upstreamProvider) ||
+    nonEmpty(vscodeParsed.provider) ||
+    nonEmpty(dynamicContext.upstreamProvider) ||
+    nonEmpty(inferredProvider) ||
+    nonEmpty(backendContext.upstreamProvider) ||
+    nonEmpty(DEFAULT_UPSTREAM_PROVIDER);
+
+  const normalizedProvider =
+    resolvedProvider === "GitHub Copilot" && inferredProvider && inferredProvider !== "GitHub Copilot"
+      ? inferredProvider
+      : resolvedProvider;
+
+  const metadata = {
+    client_app: resolvedClientApp,
+    upstream_provider: normalizedProvider,
     upstream_model: resolvedModel,
   };
+
+  maybeSyncRuntimeClientContext(metadata, backendContext);
+  return metadata;
 }
 
 // -- HTTP helper to call DISTIRA backend -----------------
@@ -356,6 +608,39 @@ server.tool(
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
 );
+
+// -- Auto-detect VS Code model polling ------------------
+
+let _lastPolledModelId = null;
+setInterval(async () => {
+  try {
+    const rawId = readVSCodeCurrentModel();
+    if (!rawId || rawId === _lastPolledModelId) return;
+
+    _lastPolledModelId = rawId;
+    const parsed = parseVSCodeModelId(rawId);
+    if (!parsed.model) return;
+
+    const backendContext = await readBackendContext();
+    const inferred = inferUpstreamProvider(parsed.model, parsed.provider);
+    const resolvedProvider = parsed.provider || inferred;
+    const normalizedProvider =
+      resolvedProvider === "GitHub Copilot" && inferred && inferred !== "GitHub Copilot"
+        ? inferred
+        : resolvedProvider;
+
+    maybeSyncRuntimeClientContext(
+      {
+        client_app: DEFAULT_CLIENT_APP,
+        upstream_provider: normalizedProvider,
+        upstream_model: parsed.model,
+      },
+      backendContext
+    );
+  } catch {
+    // best-effort silent loop
+  }
+}, 3000);
 
 // -- Start server with stdio transport ------------------
 

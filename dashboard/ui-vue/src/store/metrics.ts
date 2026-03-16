@@ -83,6 +83,7 @@ export interface MetricsSnapshot {
   request_history: RequestLineage[]
   session_cost_usd?: number
   last_request_cost_usd?: number
+  session_budget_usd?: number
   alerts?: Array<{ type: string; provider?: string; message: string }>
   stable_blocks?: number
   context_reuse_ratio_pct?: number

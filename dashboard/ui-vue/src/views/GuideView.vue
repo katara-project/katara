@@ -384,7 +384,7 @@ function scrollTo(id: string) {
 
 <style scoped>
 .guide-view {
-  max-width: 960px;
+
   margin: 0 auto;
 }
 

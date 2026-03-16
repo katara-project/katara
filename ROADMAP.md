@@ -640,7 +640,48 @@ Requesting the LLM to be concise in plain language (no emojis, no markdown decor
 - **Metrics export button** — One-click JSON download in ProvidersView for enterprise reporting.
 - **258 tests, clippy clean, fmt clean.**
 
-### V10.18 — (Planned)
+### V10.17.1 — Transparent Template Intelligence
+
+**Status:** Delivered.
+
+- **Automated directive template selection** — Compiler now selects an internal efficiency template automatically from intent + content signals (no manual template prompt needed).
+- **Signal-aware variants** — Built-in specializations for debug stack traces / CI failures, security-focused reviews, and codegen patch/test requests.
+- **Cache-hit parity** — Cached compile responses now rebuild `efficiency_directive` using context-aware selection, keeping behavior consistent across cache hits and misses.
+- **Validation** — Added template-selection tests in `compiler` crate; workspace tests remain green.
+
+### V10.17.2 — Automatic Upstream Model Detection Hardening
+
+**Status:** Delivered.
+
+- **Freshness-first upstream lineage** — MCP now resolves upstream model/provider/client using per-request metadata first (tool args, chat `model`, MCP `_meta`, dynamic resolver), with persisted runtime context moved to fallback.
+- **Runtime context auto-sync** — When newer upstream metadata is detected, MCP updates `/v1/runtime/client-context` automatically to keep Overview and Runtime Audit aligned.
+- **Copilot fallback model** — Added safe Copilot fallback (`GPT-5.3-Codex`) when no upstream model signal is exposed by the client.
+- **Provider inference update** — Upstream provider inference now recognizes `codex` and `o4` model families as OpenAI-family.
+
+### V10.17.3 — MCP Metadata Probe & Hidden Model Discovery
+
+**Status:** Delivered.
+
+- **Broader hidden-signal detection** — MCP now scans arbitrary metadata paths/values for model, provider, and client clues instead of relying only on a small fixed key list.
+- **Metadata probe artifact** — New `cache/mcp-meta-probe.json` records the latest candidate paths and values seen by the MCP layer, so undocumented VS Code/Copilot metadata can be verified empirically.
+- **Product outcome** — After one real `@distira` request, DISTIRA can now prove whether VS Code exposed the selected model, instead of guessing silently.
+
+### V10.18.0 — VS Code Live Model Detection
+
+**Status:** Delivered.
+
+- **Automatic upstream LLM detection** — DISTIRA now reads the currently active chat model directly from VS Code's `state.vscdb` SQLite database (`chat.currentLanguageModel.panel`). Zero manual configuration required — the dashboard Overview and Runtime Audit automatically show the real model selected by the user (e.g. Claude Opus 4.6, GPT-5.3-Codex).
+- **Cross-platform support** — `state.vscdb` path resolved automatically on Windows, macOS, and Linux.
+- **3 s read cache** — VS Code state is re-read at most every 3 seconds to minimize SQLite open/close overhead.
+- **Model identifier humanization** — Raw VS Code identifiers (`copilot/claude-opus-4.6`) are parsed into human-readable names (`Claude Opus 4.6`) with correct provider inference.
+- **Precedence update** — VS Code live state now slots between MCP `_meta` signals and dynamic resolver command in the upstream detection chain, superseding the static Copilot fallback model.
+
+### V10.18.1 — Live Current Model Visibility
+
+**Status:** Delivered.
+
+- **Current selected upstream card** — Overview now shows the live selected VS Code model from runtime context as a dedicated panel, so operators can distinguish the current model from aggregated historical usage.
+- **Provider normalization** — When the client brand is `GitHub Copilot` but the model family is known, the UI and MCP metadata now prefer the concrete provider (`Anthropic`, `OpenAI`, etc.).
 
 - Streaming deduplication for SSE chat responses
 - Dashboard: per-model latency heatmap over time

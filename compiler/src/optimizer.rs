@@ -331,6 +331,7 @@ fn strip_standalone_comments(text: &str) -> String {
     out
 }
 
+
 // ── Pass 6: Compact inline JSON ───────────────────────────────────────────────
 
 /// If the *entire* text is a valid JSON value, re-serialise it in compact form.

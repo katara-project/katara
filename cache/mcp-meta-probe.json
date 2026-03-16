@@ -1,0 +1,14 @@
+{
+  "captured_at": "2026-03-16T01:15:56.435Z",
+  "meta_keys": [
+    "progressToken",
+    "vscode.conversationId",
+    "vscode.requestId"
+  ],
+  "request_meta": {},
+  "candidates": {
+    "model": [],
+    "provider": [],
+    "clientApp": []
+  }
+}

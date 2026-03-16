@@ -7,10 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Automatic upstream model detection via VS Code `state.vscdb`** — DISTIRA now reads the currently selected chat model directly from VS Code's SQLite state database (`chat.currentLanguageModel.panel`), providing true zero-config automatic detection of the upstream LLM. No manual `set_client_context` or environment variables required. Works on Windows, macOS, and Linux. Results are cached (3 s TTL) and polled in the background to automatically synchronize with the dashboard even when no MCP request is made. Model identifiers (e.g. `copilot/claude-opus-4.6`) are automatically parsed into human-readable names (`Claude Opus 4.6`) with correct provider inference.
+- **Live current upstream model card in Overview** — The dashboard now shows a dedicated `Current Selected Upstream Model` panel sourced from `/v1/runtime/client-context`, so the user can see the currently selected VS Code model separately from aggregated historical upstream stats.
+
 ### Fixed
 - **RCT2I 0% bug** — `CacheEntry` now stores `rct2i_applied` and `rct2i_sections` fields so cache hits correctly preserve RCT2I metadata. Previously all cache hits hardcoded `rct2i_applied: false`, causing the counter to never increment. Backward-compatible via `#[serde(default)]`.
+- **Concrete upstream provider normalization** — Generic `GitHub Copilot` provider labels are now normalized to the actual model vendor when the model is known (`Claude` → `Anthropic`, `GPT/Codex` → `OpenAI`), preventing the current-selection UI from showing the client brand instead of the real provider.
+- **Upstream model stale detection (Overview/Audit)** — MCP upstream metadata resolution now prioritizes per-request signals (`upstreamModel`, `model`, MCP `_meta`, dynamic resolver) over persisted runtime context, and auto-syncs runtime client context when fresher metadata is seen. Prevents stale values like fixed Claude labels when the active client model changed.
+- **Hidden MCP metadata detection** — MCP upstream detection now scans a much wider set of metadata paths and values for model/provider/client signals (including non-standard keys like selected/active/session model fields), improving automatic discovery when VS Code or Copilot emits undocumented metadata.
 
 ### Added
+- **Transparent directive templates (auto-selected)** — DISTIRA now chooses internal response templates automatically from intent + prompt signals (e.g. debug stack traces, security reviews, codegen patch requests). No user action or prompt formatting required.
+- **`cache/mcp-meta-probe.json`** — Best-effort sanitized probe of the latest MCP request metadata candidates (model/provider/client paths + values). This gives a concrete debugging artifact to verify what VS Code/Copilot actually sends to the MCP layer.
 - **Provider Health Observatory** (V10.17) — New `/providers` dashboard view showing per-provider live status (healthy/degraded/down), request counts, error rates, and average latency in a sortable table with colour-coded status badges.
 - **`GET /v1/metrics/export`** — Enterprise metrics export endpoint returning structured JSON with cumulative totals, per-provider breakdown (requests, errors, error rate, latency), and per-intent breakdown (requests, tokens saved, savings %).
 - **`provider_health` in SSE/REST metrics** — Every `/v1/metrics` and SSE tick now includes a `provider_health` array with live per-provider health scoring (healthy / degraded / down based on error rate and latency thresholds).

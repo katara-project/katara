@@ -308,8 +308,12 @@ Dependencies are installed in `mcp/node_modules/` — run `npm install` inside `
 The MCP layer now forwards client lineage metadata automatically to DISTIRA:
 
 - `client_app`: defaults to `VS Code Copilot Chat`
-- `upstream_model`: resolved per request from the tool's `model`, MCP `_meta`, or an optional runtime resolver command
-- `upstream_provider`: resolved per request from MCP `_meta`, a runtime resolver command, or inferred from the upstream model family
+- `upstream_model`: detected automatically from VS Code's `state.vscdb` (key `chat.currentLanguageModel.panel`). Fallback chain: explicit tool args → MCP `_meta` → **VS Code live state** → resolver command → persisted runtime context → env
+- `upstream_provider`: inferred from the detected model family (Anthropic, OpenAI-family, Google, etc.)
+
+This means DISTIRA always shows the real model you selected in VS Code — no manual configuration required. When you switch from Claude to GPT in the model picker, the next `@distira` call reflects it automatically.
+
+When fresher upstream metadata is observed, MCP also syncs `/v1/runtime/client-context` automatically to keep dashboard lineage views current.
 
 This is what lets the dashboard distinguish the user-facing assistant/client model from the model actually routed by DISTIRA.
 

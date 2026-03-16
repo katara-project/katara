@@ -252,6 +252,8 @@ pub fn compile_context_with_hint(raw: &str, client_app: Option<&str>) -> Compile
     // negative savings (compiled > raw) which poisons the efficiency score.
     let compiled_tokens_estimate = token_count(&compiled_context).min(raw_tokens_estimate);
 
+    let efficiency_directive = efficiency_directive_for_context(&intent, effective_raw);
+
     CompileResult {
         intent: intent.clone(),
         intent_confidence,
@@ -262,7 +264,7 @@ pub fn compile_context_with_hint(raw: &str, client_app: Option<&str>) -> Compile
         compiled_context,
         slash_command: slash.as_ref().map(|sc| sc.command.clone()),
         force_local: slash.as_ref().is_some_and(|sc| sc.force_local),
-        efficiency_directive: efficiency_directive(&intent).to_string(),
+        efficiency_directive: efficiency_directive.to_string(),
         rct2i_applied,
         rct2i_sections,
     }
@@ -364,51 +366,104 @@ fn build_summary(intent: &str, raw_tokens: usize, compiled_tokens: usize) -> Str
 /// to produce concise, token-efficient responses — saving output tokens at near-
 /// zero cost (each directive is < 40 tokens).
 pub fn efficiency_directive(intent: &str) -> &'static str {
+    efficiency_directive_for_context(intent, "")
+}
+
+/// V10.18 — Transparent directive templates auto-selected by intent and content
+/// signals. This runs server-side and requires zero user action.
+pub fn efficiency_directive_for_context(intent: &str, context: &str) -> &'static str {
+    let template = select_efficiency_template(intent, context);
+    directive_for_template(template)
+}
+
+fn select_efficiency_template(intent: &str, context: &str) -> &'static str {
+    let lowered = context.to_ascii_lowercase();
+
     match intent {
         "debug" => {
-            "Be a precise debugging assistant. \
-            Return ONLY: 1) root cause (1 sentence), 2) fix (code patch or command). \
-            No explanations, no background, no alternatives unless asked. \
-            If the fix is a code change, show only the minimal diff."
+            if contains_any(&lowered, &["stack trace", "stacktrace", "panic", "exception", "traceback", "segfault"]) {
+                "debug_trace"
+            } else if contains_any(&lowered, &["test failed", "assertion failed", "ci", "pipeline", "flaky", "regression"]) {
+                "debug_test"
+            } else {
+                "debug_default"
+            }
         }
         "review" => {
-            "Be a concise code reviewer. \
-            For each issue: 1 line summary + suggested fix. \
-            Skip praise and obvious observations. \
-            Group issues by severity (critical first). \
-            No boilerplate, no disclaimers."
+            if contains_any(&lowered, &["security", "sql injection", "xss", "csrf", "ssrf", "auth", "jwt", "secret"]) {
+                "review_security"
+            } else {
+                "review_default"
+            }
         }
         "codegen" => {
-            "Generate ONLY the requested code. \
-            No explanations before or after unless explicitly asked. \
-            Use idiomatic patterns for the target language. \
-            Minimal comments — only where logic is non-obvious. \
-            If multiple approaches exist, pick the simplest."
+            if contains_any(&lowered, &["diff", "patch", "apply_patch", "unified diff"]) {
+                "codegen_patch"
+            } else if contains_any(&lowered, &["test", "tests", "unit test", "integration test"]) {
+                "codegen_tests"
+            } else {
+                "codegen_default"
+            }
         }
-        "summarize" | "fast" => {
-            "Summarize in ≤5 bullet points. \
-            Each bullet: 1 sentence max. \
-            Lead with the most important point. \
-            Skip meta-commentary (do not say 'here is a summary'). \
-            Use plain language, no jargon."
-        }
-        "translate" => {
-            "Return ONLY the translated text. \
-            No source text repetition, no translator notes, no alternatives. \
-            Preserve original formatting (paragraphs, lists, code blocks)."
-        }
-        "ocr" => {
-            "Return ONLY the extracted text. \
-            Preserve original structure and formatting. \
-            No commentary, no confidence notes, no descriptions of the image."
-        }
+        "summarize" | "fast" => "summarize_default",
+        "translate" => "translate_default",
+        "ocr" => "ocr_default",
         _ => {
-            "Respond concisely and directly. \
-            Lead with the answer, then support if needed. \
-            No filler phrases, no disclaimers, no unnecessary repetition. \
-            Prefer short sentences and plain language."
+            if contains_any(&lowered, &["steps", "checklist", "plan"]) {
+                "general_action"
+            } else {
+                "general_default"
+            }
         }
     }
+}
+
+fn directive_for_template(template: &str) -> &'static str {
+    match template {
+        "debug_trace" => {
+            "Debug mode: output ONLY root cause + exact fix. Include 1 minimal patch/command and 1 verification step. Max 3 bullets."
+        }
+        "debug_test" => {
+            "Debug CI/test failure: output failing assertion cause, smallest fix, and exact re-run command. No background."
+        }
+        "debug_default" => {
+            "Be a precise debugging assistant. Return ONLY: 1) root cause (1 sentence), 2) fix (code patch or command). No explanations unless asked."
+        }
+        "review_security" => {
+            "Security review mode: list only vulnerabilities (critical first), exploit path, and concrete fix. Skip style comments."
+        }
+        "review_default" => {
+            "Be a concise code reviewer. For each issue: 1-line summary + fix. Group by severity. No boilerplate."
+        }
+        "codegen_patch" => {
+            "Return ONLY a minimal unified diff patch. No prose, no explanations, no code fences."
+        }
+        "codegen_tests" => {
+            "Generate ONLY code + focused tests for changed behavior. Keep API unchanged unless requested."
+        }
+        "codegen_default" => {
+            "Generate ONLY the requested code. Use idiomatic patterns. Minimal comments for non-obvious logic only."
+        }
+        "summarize_default" => {
+            "Summarize in <=5 bullets, 1 sentence each, highest signal first. No meta-commentary."
+        }
+        "translate_default" => {
+            "Return ONLY translated text. Preserve structure and formatting. No notes."
+        }
+        "ocr_default" => {
+            "Return ONLY extracted text. Preserve layout and line breaks. No commentary."
+        }
+        "general_action" => {
+            "Answer with a short actionable checklist: outcome first, then numbered steps. Keep it concise."
+        }
+        _ => {
+            "Respond concisely and directly. Lead with the answer, then support if needed. No filler."
+        }
+    }
+}
+
+fn contains_any(haystack: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|needle| haystack.contains(needle))
 }
 
 /// Estimate BPE token count using the Distira universal tokenizer.
@@ -1952,6 +2007,42 @@ mod tests {
         assert!(
             r.efficiency_directive.contains("root cause"),
             "debug directive should mention root cause, got: {}",
+            r.efficiency_directive
+        );
+    }
+
+    #[test]
+    fn efficiency_directive_auto_selects_debug_trace_template() {
+        let input = "panic in worker thread\nstack trace:\nmain.rs:42:5\ntraceback follows";
+        let r = compile_context(input);
+        assert_eq!(r.intent, "debug");
+        assert!(
+            r.efficiency_directive.contains("Max 3 bullets"),
+            "expected debug trace template, got: {}",
+            r.efficiency_directive
+        );
+    }
+
+    #[test]
+    fn efficiency_directive_auto_selects_review_security_template() {
+        let input = "/review check this diff for sql injection and xss in auth flow";
+        let r = compile_context(input);
+        assert_eq!(r.intent, "review");
+        assert!(
+            r.efficiency_directive.contains("vulnerabilities"),
+            "expected security review template, got: {}",
+            r.efficiency_directive
+        );
+    }
+
+    #[test]
+    fn efficiency_directive_auto_selects_codegen_patch_template() {
+        let input = "/code apply_patch this file and return unified diff only";
+        let r = compile_context(input);
+        assert_eq!(r.intent, "codegen");
+        assert!(
+            r.efficiency_directive.contains("unified diff patch"),
+            "expected codegen patch template, got: {}",
             r.efficiency_directive
         );
     }
